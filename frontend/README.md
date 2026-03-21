@@ -1,5 +1,23 @@
-# Vue 3 + Vite
+# Frontend — ODI SaaS Platform
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Vue 3 SPA for the ODI SaaS Platform. See [../README.md](../README.md) for full project documentation.
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Setup
+
+```bash
+npm install
+npm run dev      # Development server
+npm run build    # Production build
+npm run lint     # ESLint check
+npm run lint:fix # ESLint auto-fix
+```
+
+## Tech Stack
+
+- **Vue 3.5** with Composition API (`<script setup>`)
+- **Vite 7** build tool
+- **Ant Design Vue 4** UI component library
+- **Pinia** state management
+- **Vue Router 4** with history mode
+- **Axios** HTTP client
+- **ESLint + Prettier** code quality
