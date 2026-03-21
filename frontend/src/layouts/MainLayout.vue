@@ -6,6 +6,10 @@
         <span class="logo-text" v-show="!collapsed">智能 ODI 平台</span>
       </div>
       <a-menu theme="dark" mode="inline" :selectedKeys="selectedKeys">
+        <a-menu-item key="AIWorkspace" @click="$router.push('/ai')">
+          <template #icon><RobotOutlined /></template>
+          <span>AI 助手</span>
+        </a-menu-item>
         <a-menu-item key="Dashboard" @click="$router.push('/')">
           <template #icon><DashboardOutlined /></template>
           <span>工作台</span>

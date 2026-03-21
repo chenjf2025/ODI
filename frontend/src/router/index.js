@@ -12,6 +12,7 @@ const routes = [
         component: () => import('../layouts/MainLayout.vue'),
         children: [
             { path: '', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
+            { path: 'ai', name: 'AIWorkspace', component: () => import('../views/AIWorkspace.vue') },
             { path: 'projects', name: 'Projects', component: () => import('../views/Projects.vue') },
             { path: 'projects/:id', name: 'ProjectDetail', component: () => import('../views/ProjectDetail.vue') },
             { path: 'entities/domestic', name: 'DomesticEntities', component: () => import('../views/DomesticEntities.vue') },

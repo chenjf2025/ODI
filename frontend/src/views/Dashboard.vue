@@ -17,15 +17,6 @@
       </a-col>
     </a-row>
 
-    <a-row :gutter="[16, 16]" style="margin-bottom: 24px">
-      <a-col :xs="24" :lg="16">
-        <AIWorkspace :contextProjectId="contextProjectId" />
-      </a-col>
-      <a-col :xs="24" :lg="8">
-        <ContextSidebar @project-change="handleProjectChange" />
-      </a-col>
-    </a-row>
-
     <a-row :gutter="[16, 16]">
       <a-col :xs="24" :lg="14">
         <div class="page-card">
@@ -90,12 +81,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '../stores/user'
 import { projectsApi } from '../api'
 import { PlusOutlined, BankOutlined, RobotOutlined, WalletOutlined } from '@ant-design/icons-vue'
-import AIWorkspace from './AIWorkspace.vue'
-import ContextSidebar from './ContextSidebar.vue'
 
 const userStore = useUserStore()
 const projects = ref([])
-const contextProjectId = ref(null)
 
 const STATUS_LIST = [
   'PRE_REVIEW', 'DATA_COLLECTION', 'NDRC_FILING_PENDING', 'NDRC_APPROVED',
@@ -128,10 +116,6 @@ const statusStats = computed(() => {
     status: s, count: countMap[s], percent: Math.round((countMap[s] / total) * 100)
   }))
 })
-
-function handleProjectChange(projectId) {
-  contextProjectId.value = projectId
-}
 
 function statusName(s) {
   const map = {
