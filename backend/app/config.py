@@ -51,10 +51,16 @@ class Settings(BaseSettings):
     MINIMAX_BASE_URL: str = "https://api.minimax.chat/v1"
 
     # 企业征信
-    QICHACHA_API_KEY: str = ""
+    QICHACCHA_API_KEY: str = ""
     TIANYANCHA_API_KEY: str = ""
     BAIDU_CREDIT_API_KEY: str = ""
     DEFAULT_CORP_INFO_PROVIDER: str = "qichacha"
+
+    # Dify
+    DIFY_API_KEY: str = ""
+    DIFY_BASE_URL: str = "https://api.dify.ai"
+    DIFY_APP_ID: str = ""
+    DIFY_DATASET_ID: str = ""
 
     # 应用
     APP_ENV: str = "development"

@@ -446,6 +446,54 @@ async def chat(
         actions_results.append(result)
         response_text = _format_rules_result(result)
 
+    elif intent == Intent.KNOWLEDGE_QA:
+        from app.services.dify_service import dify_service
+
+        if not dify_service.is_configured:
+            response_text = (
+                "当前未配置 Dify 知识库服务，无法回答此类问题。"
+                "请联系管理员配置 Dify API。"
+            )
+        else:
+            chunks = await dify_service.retrieve(
+                last_user_message, top_k=5, score_threshold=0.5
+            )
+            if dify_service.app_id:
+                dify_result = await dify_service.chat(
+                    query=last_user_message,
+                    user_id=str(user_id),
+                    conversation_id=None,
+                )
+                if "error" in dify_result:
+                    response_text = f"Dify 服务调用失败：{dify_result['error']}"
+                else:
+                    response_text = dify_result.get("response", "Dify 未返回有效响应")
+                    actions_results.append({"type": "dify_chat", "chunks": chunks})
+            else:
+                context = dify_service.build_context_from_chunks(chunks)
+                if context:
+                    context_prompt = (
+                        f"请根据以下知识库内容回答用户问题。如果知识库没有相关信息，请如实说明。\n\n"
+                        f"【知识库内容】\n{context}\n\n【用户问题】{last_user_message}"
+                    )
+                    conversation_messages = [
+                        {"role": "system", "content": CONVERSATION_SYSTEM_PROMPT},
+                        {"role": "user", "content": context_prompt},
+                    ]
+                    try:
+                        llm_response = await ai_service.router.route_and_call(
+                            task_type=TaskType.GENERAL,
+                            messages=conversation_messages,
+                            temperature=0.7,
+                            max_tokens=4096,
+                        )
+                        response_text = llm_response.content
+                        ai_service.last_llm_usage = llm_response.usage
+                    except Exception as e:
+                        response_text = f"知识库检索成功，但 AI 生成失败：{str(e)}"
+                else:
+                    response_text = "知识库中未找到与您问题相关的内容。"
+
     if attachments and not response_text:
         extracted = await image_service.process_attachments(attachments)
         attachment_context = "\n".join(
