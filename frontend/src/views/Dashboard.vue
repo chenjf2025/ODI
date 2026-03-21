@@ -5,7 +5,6 @@
       <p>欢迎回来, {{ userStore.user?.full_name || userStore.user?.username }}！以下是您的业务概览。</p>
     </div>
 
-    <!-- 统计卡片 -->
     <a-row :gutter="[16, 16]" style="margin-bottom: 24px">
       <a-col :xs="24" :sm="12" :lg="6" v-for="(stat, i) in stats" :key="i">
         <div class="stat-card">
@@ -18,8 +17,16 @@
       </a-col>
     </a-row>
 
+    <a-row :gutter="[16, 16]" style="margin-bottom: 24px">
+      <a-col :xs="24" :lg="16">
+        <AIWorkspace :contextProjectId="contextProjectId" />
+      </a-col>
+      <a-col :xs="24" :lg="8">
+        <ContextSidebar @project-change="handleProjectChange" />
+      </a-col>
+    </a-row>
+
     <a-row :gutter="[16, 16]">
-      <!-- 项目状态分布 -->
       <a-col :xs="24" :lg="14">
         <div class="page-card">
           <h3 style="margin-bottom: 16px; font-weight: 600">项目状态分布</h3>
@@ -34,7 +41,6 @@
         </div>
       </a-col>
 
-      <!-- 快捷操作 -->
       <a-col :xs="24" :lg="10">
         <div class="page-card">
           <h3 style="margin-bottom: 16px; font-weight: 600">快捷操作</h3>
@@ -58,7 +64,6 @@
           </a-space>
         </div>
 
-        <!-- 账户信息 -->
         <div class="page-card" style="margin-top: 16px">
           <h3 style="margin-bottom: 16px; font-weight: 600">账户信息</h3>
           <a-descriptions :column="1" size="small">
@@ -85,9 +90,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '../stores/user'
 import { projectsApi } from '../api'
 import { PlusOutlined, BankOutlined, RobotOutlined, WalletOutlined } from '@ant-design/icons-vue'
+import AIWorkspace from './AIWorkspace.vue'
+import ContextSidebar from './ContextSidebar.vue'
 
 const userStore = useUserStore()
 const projects = ref([])
+const contextProjectId = ref(null)
 
 const STATUS_LIST = [
   'PRE_REVIEW', 'DATA_COLLECTION', 'NDRC_FILING_PENDING', 'NDRC_APPROVED',
@@ -120,6 +128,10 @@ const statusStats = computed(() => {
     status: s, count: countMap[s], percent: Math.round((countMap[s] / total) * 100)
   }))
 })
+
+function handleProjectChange(projectId) {
+  contextProjectId.value = projectId
+}
 
 function statusName(s) {
   const map = {

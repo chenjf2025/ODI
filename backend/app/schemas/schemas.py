@@ -3,7 +3,7 @@ Pydantic 请求/响应模式定义
 """
 
 from pydantic import BaseModel, Field, EmailStr, field_validator
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
@@ -363,3 +363,30 @@ class PageResponse(BaseModel):
 class MessageResponse(BaseModel):
     message: str
     success: bool = True
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str
+
+
+class ChatAttachment(BaseModel):
+    filename: str
+    url: str
+    content_type: Optional[str] = None
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage] = Field(..., description="对话历史")
+    attachments: Optional[List[ChatAttachment]] = Field(
+        default=None, description="附件列表"
+    )
+    context_project_id: Optional[str] = Field(default=None, description="上下文项目ID")
+
+
+class ChatResponse(BaseModel):
+    content: str
+    intent: str
+    confidence: float
+    actions: List[Any] = Field(default_factory=list)
+    usage: Optional[Dict[str, int]] = None

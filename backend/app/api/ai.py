@@ -17,6 +17,8 @@ from app.schemas.schemas import (
     ReportGenerateResponse,
     FinancialExtractRequest,
     FinancialExtractResponse,
+    ChatRequest,
+    ChatResponse,
 )
 from app.middleware.auth import get_current_user, require_roles
 from app.services.project_service import ProjectService
@@ -121,7 +123,6 @@ async def extract_financial(
 ):
     """从审计报告中抽取财务数据"""
     try:
-        # 这里简化处理，实际应读取上传的文件内容
         result = await ai_service.extract_financial_data(
             f"请提取项目 {data.project_id} 关联的财务数据（来自文件 {data.file_url}）"
         )
@@ -132,3 +133,25 @@ async def extract_financial(
         "project_id": str(data.project_id),
         "extracted_data": result,
     }
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat_endpoint(
+    data: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """统一 AI 对话入口 — 意图分类 + 动作执行 + LLM 回复"""
+    from app.services.ai_service import chat
+
+    result = await chat(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.user_id,
+        messages=[m.model_dump() for m in data.messages],
+        attachments=[a.model_dump() for a in data.attachments]
+        if data.attachments
+        else None,
+        context_project_id=data.context_project_id,
+    )
+    return result

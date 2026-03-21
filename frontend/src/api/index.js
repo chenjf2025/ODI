@@ -59,6 +59,7 @@ export const aiApi = {
     preReview: data => api.post('/ai/pre-review', data),
     generateReport: data => api.post('/ai/generate-report', data),
     extractFinancial: data => api.post('/ai/extract-financial', data),
+    chat: data => api.post('/ai/chat', data),
 }
 
 // ===== Rules =====
