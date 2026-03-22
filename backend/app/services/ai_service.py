@@ -3,6 +3,7 @@ AI 业务服务层 - 智能预审、报告生成、财务数据抽取
 """
 
 import json
+import re
 from typing import Optional, Dict, List, Any
 from uuid import UUID
 
@@ -377,6 +378,51 @@ async def chat(
     if intent == Intent.CLARIFY and classification.get("clarify_question"):
         response_text = classification["clarify_question"]
 
+    elif intent == Intent.CREATE_PROJECT:
+        project_name = entities.get("project_name")
+        overseas_country = None
+        m = re.search(r"去(.*?)投资", last_user_message)
+        if m:
+            overseas_country = m.group(1).strip()
+        m2 = re.search(r"在(.*?)投资", last_user_message)
+        if m2:
+            overseas_country = m2.group(1).strip()
+
+        if not overseas_country and not project_name:
+            response_text = (
+                "好的，要创建项目，请告诉我以下信息：\n"
+                "1. 投资目的地是哪个国家/地区？\n"
+                "2. 境内主体是哪家公司？（如果还没添加境内主体，请先到「境内主体管理」添加）"
+            )
+        else:
+            project_data = {"project_name": project_name}
+            if overseas_country:
+                existing_overseas = await _find_or_create_overseas_entity(
+                    db, tenant_id, overseas_country
+                )
+                if existing_overseas:
+                    project_data["overseas_entity_id"] = existing_overseas.entity_id
+
+            existing_domestic = await _find_single_domestic_entity(db, tenant_id)
+            if existing_domestic:
+                project_data["domestic_entity_id"] = existing_domestic.entity_id
+
+            result = await executor.execute_create_project(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                project_data=project_data,
+            )
+            actions_results.append(result)
+            if result.get("type") == "error":
+                response_text = f"项目创建失败：{result.get('message')}"
+            else:
+                response_text = (
+                    f"✅ 项目「{result['project_name']}」已创建成功！\n"
+                    f"项目状态：{result['status']}\n"
+                    f"项目ID：{result['project_id']}\n\n"
+                    "您可以补充更多项目信息（投资金额、投资架构等），然后进行智能预审。"
+                )
+
     elif intent == Intent.QUERY_PROJECT:
         if entities.get("project_id"):
             result = await executor.execute_project_detail(
@@ -525,6 +571,35 @@ async def chat(
         "actions": actions_results,
         "usage": ai_service.last_llm_usage,
     }
+
+
+async def _find_or_create_overseas_entity(
+    db: AsyncSession, tenant_id: UUID, country: str
+):
+    from sqlalchemy import select
+    from app.models.entity import EntityOverseas
+
+    result = await db.execute(
+        select(EntityOverseas).where(
+            EntityOverseas.tenant_id == tenant_id,
+            EntityOverseas.target_country.ilike(f"%{country}%"),
+        )
+    )
+    existing = result.scalars().first()
+    return existing
+
+
+async def _find_single_domestic_entity(db: AsyncSession, tenant_id: UUID):
+    from sqlalchemy import select
+    from app.models.entity import EntityDomestic
+
+    result = await db.execute(
+        select(EntityDomestic).where(EntityDomestic.tenant_id == tenant_id)
+    )
+    all_entities = result.scalars().all()
+    if len(all_entities) == 1:
+        return all_entities[0]
+    return None
 
 
 def _format_project_result(result: Dict) -> str:
