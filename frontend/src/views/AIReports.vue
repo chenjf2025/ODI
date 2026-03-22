@@ -32,48 +32,22 @@
         <div class="page-card" style="min-height: 500px">
           <h3 style="margin-bottom: 16px; font-weight: 600">报告输出</h3>
 
-          <a-alert v-if="inlineError" :message="inlineError" type="error" show-icon closable @close="inlineError = ''" style="margin-bottom: 16px" />
-
-          <div v-if="selectedProject && (selectedProject.pre_review_report || selectedProject.feasibility_report || selectedProject.due_diligence_report)">
-            <a-tabs v-model:activeKey="activeReportTab">
-              <a-tab-pane key="pre_review" tab="智能预审" v-if="selectedProject.pre_review_report">
-                <div class="traffic-light" style="margin-bottom: 12px; font-size: 16px">
-                  <span class="traffic-dot" :class="selectedProject.pre_review_report.traffic_light?.toLowerCase()"></span>
-                  <span style="font-weight: 700">{{ { GREEN: '低风险 - 建议推进', YELLOW: '中风险 - 需关注', RED: '高风险 - 谨慎评估' }[selectedProject.pre_review_report.traffic_light] }}</span>
-                </div>
-                <div v-if="selectedProject.pre_review_report.matched_rules?.length" style="margin-bottom: 12px">
-                  <a-tag v-for="(r, i) in selectedProject.pre_review_report.matched_rules" :key="i" :color="{ HIGH: 'red', MEDIUM: 'orange', LOW: 'green' }[r.risk_level]" style="margin: 4px">
-                    {{ r.rule_name || r.target_value }}
-                  </a-tag>
-                </div>
-                <div v-if="selectedProject.pre_review_report.ai_analysis" style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
-                  {{ selectedProject.pre_review_report.ai_analysis }}
-                </div>
-              </a-tab-pane>
-              <a-tab-pane key="feasibility" tab="可研报告" v-if="selectedProject.feasibility_report">
-                <div style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
-                  {{ selectedProject.feasibility_report }}
-                </div>
-              </a-tab-pane>
-              <a-tab-pane key="due_diligence" tab="尽调报告" v-if="selectedProject.due_diligence_report">
-                <div style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
-                  {{ selectedProject.due_diligence_report }}
-                </div>
-              </a-tab-pane>
-            </a-tabs>
+          <div v-if="reportContent" style="white-space: pre-wrap; background: var(--bg-primary); padding: 20px; border-radius: 12px; font-size: 14px; line-height: 1.8; max-height: 600px; overflow-y: auto">
+            {{ reportContent }}
           </div>
 
           <div v-else-if="preReviewResult">
-            <div class="traffic-light" style="margin-bottom: 12px; font-size: 16px">
+            <div class="traffic-light" style="margin-bottom: 16px; font-size: 18px">
               <span class="traffic-dot" :class="preReviewResult.traffic_light?.toLowerCase()"></span>
               <span style="font-weight: 700">{{ { GREEN: '低风险 - 建议推进', YELLOW: '中风险 - 需关注', RED: '高风险 - 谨慎评估' }[preReviewResult.traffic_light] }}</span>
             </div>
             <div v-if="preReviewResult.matched_rules?.length" style="margin-bottom: 12px">
+              <h4>命中规则:</h4>
               <a-tag v-for="(r, i) in preReviewResult.matched_rules" :key="i" :color="{ HIGH: 'red', MEDIUM: 'orange', LOW: 'green' }[r.risk_level]" style="margin: 4px">
                 {{ r.rule_name || r.target_value }}
               </a-tag>
             </div>
-            <div v-if="preReviewResult.summary" style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
+            <div v-if="preReviewResult.summary" style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px">
               {{ preReviewResult.summary }}
             </div>
           </div>
@@ -97,7 +71,9 @@ const loadingTypes = ref({ pre_review: false, feasibility: false, due_diligence:
 const reportContent = ref('')
 const preReviewResult = ref(null)
 const inlineError = ref('')
-const activeReportTab = ref('feasibility')
+
+const TRAFFIC_MAP = { GREEN: '低风险 - 建议推进', YELLOW: '中风险 - 需关注', RED: '高风险 - 谨慎评估' }
+const RISK_MAP = { HIGH: 'red', MEDIUM: 'orange', LOW: 'green' }
 
 onMounted(async () => {
   try { const { data } = await projectsApi.list({ page: 1, page_size: 100 }); projects.value = data.items || [] } catch {}
@@ -106,89 +82,30 @@ onMounted(async () => {
 async function loadProject() {
   inlineError.value = ''
   if (selectedProjectId.value) {
-    try {
-      const { data } = await projectsApi.get(selectedProjectId.value)
-      selectedProject.value = data
-      if (data.pre_review_report) {
-        preReviewResult.value = data.pre_review_report
-      }
-      if (data.feasibility_report) {
-        reportContent.value = data.feasibility_report
-      }
-      if (data.due_diligence_report) {
-        reportContent.value = data.due_diligence_report
-      }
-    } catch {}
+    try { const { data } = await projectsApi.get(selectedProjectId.value); selectedProject.value = data } catch {}
   }
 }
 
 async function runAI(type) {
   loadingTypes.value[type] = true
+  reportContent.value = ''
+  preReviewResult.value = null
   inlineError.value = ''
   const savedReportContent = reportContent.value
   const savedPreReviewResult = preReviewResult.value
-  reportContent.value = ''
-  preReviewResult.value = null
   try {
     if (type === 'pre_review') {
       const { data } = await aiApi.preReview({ project_id: selectedProjectId.value })
       preReviewResult.value = data
-      activeReportTab.value = 'pre_review'
     } else {
       const { data } = await aiApi.generateReport({ project_id: selectedProjectId.value, report_type: type })
       reportContent.value = data.content
-      activeReportTab.value = type
     }
     message.success('AI 任务完成')
     await loadProject()
   } catch (e) {
     reportContent.value = savedReportContent
     preReviewResult.value = savedPreReviewResult
-    const detail = e.response?.data?.detail
-    let errMsg = 'AI 任务失败'
-    if (e.response?.status === 402 && detail?.error === 'INSUFFICIENT_FUNDS') {
-      errMsg = `余额不足：当前 ${detail.current_balance} 点，需要 ${detail.required} 点，请到【系统配置-充值】充值点数`
-    } else if (typeof detail === 'string') {
-      errMsg = detail
-    } else if (detail?.message) {
-      errMsg = detail.message
-    } else if (e.message) {
-      errMsg = e.message.includes('timeout') ? '请求超时，请稍后重试' : e.message
-    } else if (!e.response) {
-      errMsg = '网络错误，请检查连接后重试'
-    }
-    inlineError.value = errMsg
-    message.error(errMsg)
-  } finally {
-    loadingTypes.value[type] = false
-  }
-}
-      if (data.feasibility_report) {
-        reportContent.value = data.feasibility_report
-        activeReportTab.value = 'feasibility'
-      } else if (data.due_diligence_report) {
-        reportContent.value = data.due_diligence_report
-        activeReportTab.value = 'due_diligence'
-      }
-    } catch {}
-  }
-}
-
-async function runAI(type) {
-  loadingTypes.value[type] = true
-  reportContent.value = ''
-  preReviewResult.value = null
-  try {
-    if (type === 'pre_review') {
-      const { data } = await aiApi.preReview({ project_id: selectedProjectId.value })
-      preReviewResult.value = data
-    } else {
-      const { data } = await aiApi.generateReport({ project_id: selectedProjectId.value, report_type: type })
-      reportContent.value = data.content
-    }
-    message.success('AI 任务完成')
-    await loadProject()
-  } catch (e) {
     const detail = e.response?.data?.detail
     let errMsg = 'AI 任务失败'
     if (e.response?.status === 402 && detail?.error === 'INSUFFICIENT_FUNDS') {
