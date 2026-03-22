@@ -427,7 +427,7 @@ async def chat(
             else:
                 response_text = (
                     f"✅ 项目「{result['project_name']}」已创建成功！\n"
-                    f"项目状态：{result['status']}\n"
+                    f"项目状态：{_status_name(result['status'])}\n"
                     f"项目ID：{result['project_id']}\n\n"
                     "您可以补充更多项目信息（投资金额、投资架构等），然后进行智能预审。"
                 )
@@ -701,6 +701,23 @@ async def _find_single_domestic_entity(db: AsyncSession, tenant_id: UUID):
     return None
 
 
+_STATUS_MAP = {
+    "PRE_REVIEW": "智能预审",
+    "DATA_COLLECTION": "材料准备",
+    "NDRC_FILING_PENDING": "发改委备案待审",
+    "NDRC_APPROVED": "发改委通过",
+    "MOFCOM_FILING_PENDING": "商务部备案待审",
+    "MOFCOM_APPROVED": "商务部通过",
+    "BANK_REG_PENDING": "银行登记待审",
+    "FUNDS_REMITTED": "资金已汇出",
+    "POST_INVESTMENT": "投后管理",
+}
+
+
+def _status_name(s: str) -> str:
+    return _STATUS_MAP.get(s, s)
+
+
 def _format_project_result(result: Dict) -> str:
     if result["type"] == "project_list":
         if not result["projects"]:
@@ -708,12 +725,12 @@ def _format_project_result(result: Dict) -> str:
         lines = ["| 项目名称 | 状态 | 金额 |", "|--------|------|-----|"]
         for p in result["projects"]:
             lines.append(
-                f"| {p['name']} | {p['status']} | {p['amount']} {p['currency']} |"
+                f"| {p['name']} | {_status_name(p['status'])} | {p['amount']} {p['currency']} |"
             )
         return "以下是您的项目列表：\n" + "\n".join(lines)
     elif result["type"] == "project_detail":
         proj = result["project"]
-        return f"**{proj['name']}**\n- 状态：{proj['status']}\n- 金额：{proj['amount']} {proj['currency']}\n- 投资架构：{proj['investment_path']}"
+        return f"**{proj['name']}**\n- 状态：{_status_name(proj['status'])}\n- 金额：{proj['amount']} {proj['currency']}\n- 投资架构：{proj['investment_path']}"
     return result.get("message", "项目信息加载失败")
 
 
