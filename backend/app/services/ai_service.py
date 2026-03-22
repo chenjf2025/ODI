@@ -3,6 +3,7 @@ AI 业务服务层 - 智能预审、报告生成、财务数据抽取
 """
 
 import json
+import logging
 import re
 from typing import Optional, Dict, List, Any
 from uuid import UUID
@@ -487,14 +488,10 @@ async def chat(
         )
         actions_results.append(result)
         response_text = _format_entity_result(result)
-        import logging as ai_log
-
-        ai_log.getLogger(__name__).info(
+        logging.getLogger(__name__).info(
             f"QUERY_ENTITY result: domestic={result.get('domestic')!r}, overseas={result.get('overseas')!r}, empty_check={result.get('domestic') == [] and result.get('overseas') == []}, entity_name={entities.get('entity_name')!r}, msg={last_user_message!r}"
         )
         if result.get("domestic") == [] and result.get("overseas") == []:
-            import re
-
             create_match = re.search(
                 r'增加.*?境内主体["""\'](.+?)[""\'\s]', last_user_message
             )
@@ -513,8 +510,6 @@ async def chat(
             if create_match:
                 g1 = create_match.group(1)
                 company_name = (g1 or "").strip() if g1 else None
-                import logging
-
                 logging.getLogger(__name__).info(
                     f"create_match OK: company_name={company_name!r}, msg={last_user_message!r}"
                 )
