@@ -395,3 +395,36 @@ class ChatResponse(BaseModel):
     usage: Optional[Any] = None
     session_id: Optional[str] = None
     suggestions: List[str] = Field(default_factory=list)
+
+
+class DocumentCreate(BaseModel):
+    step_status: str
+    document_type: str
+    document_name: str
+    file_url: str
+    file_size: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class DocumentOut(BaseModel):
+    document_id: UUID
+    project_id: UUID
+    step_status: str
+    document_type: str
+    document_name: str
+    file_url: str
+    file_size: Optional[str] = None
+    remark: Optional[str] = None
+    review_result: Optional[str] = None
+    review_status: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StepDocumentsOut(BaseModel):
+    step_status: str
+    step_name: str
+    requirements: List[Dict]
+    documents: List[DocumentOut]

@@ -13,6 +13,7 @@ from app.models.project import (
     InvestmentPath,
     VALID_TRANSITIONS,
 )
+from app.models.project_document import ProjectDocument
 from app.models.rules import RulesEngine, RuleType, RiskLevel
 from app.models.llm_config import LLMConfig
 from app.models.billing import BillingLog, BillingType
@@ -31,6 +32,7 @@ __all__ = [
     "InvestmentCurrency",
     "InvestmentPath",
     "VALID_TRANSITIONS",
+    "ProjectDocument",
     "RulesEngine",
     "RuleType",
     "RiskLevel",

@@ -123,6 +123,12 @@ class ProjectInvestment(Base):
         lazy="selectin",
         passive_deletes="all",
     )
+    documents = relationship(
+        "ProjectDocument",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
 
 class ProjectStatusLog(Base):
