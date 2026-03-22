@@ -487,6 +487,102 @@ async def chat(
         )
         actions_results.append(result)
         response_text = _format_entity_result(result)
+        import logging as ai_log
+
+        ai_log.getLogger(__name__).info(
+            f"QUERY_ENTITY result: domestic={result.get('domestic')!r}, overseas={result.get('overseas')!r}, empty_check={result.get('domestic') == [] and result.get('overseas') == []}, entity_name={entities.get('entity_name')!r}, msg={last_user_message!r}"
+        )
+        if result.get("domestic") == [] and result.get("overseas") == []:
+            import re
+
+            create_match = re.search(
+                r'增加.*?境内主体["""\'](.+?)[""\'\s]', last_user_message
+            )
+            if not create_match:
+                create_match = re.search(
+                    r'增加一个?境内主体(?:[""\'](.+?)[""\'])?', last_user_message
+                )
+            if not create_match:
+                create_match = re.search(
+                    r'帮我添加.*?境内主体["""\'](.+?)[""\'\s]', last_user_message
+                )
+            if not create_match:
+                create_match = re.search(
+                    r'添加.*?境内主体["""\'](.+?)[""\'\s]', last_user_message
+                )
+            if create_match:
+                g1 = create_match.group(1)
+                company_name = (g1 or "").strip() if g1 else None
+                import logging
+
+                logging.getLogger(__name__).info(
+                    f"create_match OK: company_name={company_name!r}, msg={last_user_message!r}"
+                )
+            else:
+                name_match = re.search(r'["""\'](.+?)[""\'\s]*是', last_user_message)
+                company_name = (
+                    name_match.group(1).strip()
+                    if name_match
+                    else entities.get("entity_name")
+                )
+
+            if company_name and any(
+                kw in last_user_message
+                for kw in ["增加", "创建", "添加", "帮我", "帮我增加", "帮我创建"]
+            ):
+                try:
+                    from app.services.corporate_info import corporate_info_service
+                    from app.services.corporate_info.base import DomesticCompanyDTO
+
+                    search_results = await corporate_info_service.search_company(
+                        company_name
+                    )
+                    if search_results:
+                        company = search_results[0]
+                        create_result = await executor.execute_create_entity(
+                            tenant_id=tenant_id,
+                            entity_type="domestic",
+                            company_name=company.company_name,
+                            uscc=company.uscc,
+                            legal_representative=company.legal_representative,
+                            registered_address=company.registered_address,
+                            industry_code=company.industry_code,
+                        )
+                        actions_results.append(create_result)
+                        if create_result.get("type") == "error":
+                            response_text = f"联网查询到「{company.company_name}」但创建失败：{create_result.get('message')}"
+                        else:
+                            response_text = (
+                                f"✅ 已自动联网查询并创建境内主体「{company.company_name}」！\n"
+                                f"- 统一社会信用代码：{company.uscc}\n"
+                                f"- 法定代表人：{company.legal_representative or '未知'}\n"
+                                f"- 注册地址：{company.registered_address or '未知'}\n"
+                                f"- 企业状态：{company.company_status or '未知'}\n\n"
+                                f"主体已成功添加到您的账户中。"
+                            )
+                    else:
+                        response_text = (
+                            f"未在企业数据库中找到「{company_name}」的相关信息。"
+                            f"请直接告诉我该企业的统一社会信用代码，我可以帮您手动创建。"
+                        )
+                except Exception as e:
+                    from app.exceptions import CorporateInfoError
+
+                    if isinstance(e, CorporateInfoError):
+                        response_text = (
+                            f"联网查询「{company_name}」失败：所有企业数据源（企查查/天眼查/百度）均暂不可用。\n\n"
+                            f"您可以通过【主体管理】页面手动添加该企业，需要填写：\n"
+                            f"  • 企业名称：{company_name}\n"
+                            f"  • 统一社会信用代码\n"
+                            f"  • 法定代表人\n"
+                            f"  • 注册地址\n\n"
+                            f"如果企业信息发生变化，请随时告诉我更新。"
+                        )
+                    else:
+                        response_text = (
+                            f"联网查询企业信息失败：{str(e)}。"
+                            f"如果您知道该企业的统一社会信用代码，请直接告诉我，我来帮您创建。"
+                        )
 
     elif intent == Intent.QUERY_RULES:
         result = await executor.execute_query_rules(tenant_id)

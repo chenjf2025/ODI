@@ -29,7 +29,7 @@ class CorporateInfoService:
 
     def _initialize_providers(self):
         """初始化所有数据源"""
-        if settings.QICHACHA_API_KEY:
+        if settings.QICHACCHA_API_KEY:
             self._providers["qichacha"] = QiChaChaProvider(settings.QICHACHA_API_KEY)
         if settings.TIANYANCHA_API_KEY:
             self._providers["tianyancha"] = TianYanChaProvider(

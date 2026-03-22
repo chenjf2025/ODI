@@ -286,6 +286,66 @@ class ActionExecutor:
 
         return {"type": "entity_list", **results}
 
+    async def execute_create_entity(
+        self,
+        tenant_id: UUID,
+        entity_type: str,
+        company_name: str,
+        uscc: str = None,
+        legal_representative: str = None,
+        registered_address: str = None,
+        net_assets: float = None,
+        net_profit: float = None,
+        industry_code: str = None,
+        target_country: str = None,
+        overseas_name_en: str = None,
+        overseas_industry_code: str = None,
+        registered_capital: float = None,
+        currency: str = "USD",
+    ) -> Dict[str, Any]:
+        if entity_type == "domestic":
+            if not company_name or not uscc:
+                return {
+                    "type": "error",
+                    "message": "境内主体需要提供企业名称和统一社会信用代码",
+                }
+            entity = EntityDomestic(
+                tenant_id=tenant_id,
+                company_name=company_name,
+                uscc=uscc,
+                legal_representative=legal_representative,
+                registered_address=registered_address,
+                net_assets=net_assets,
+                net_profit=net_profit,
+                industry_code=industry_code,
+            )
+            self.db.add(entity)
+        elif entity_type == "overseas":
+            if not company_name or not target_country:
+                return {"type": "error", "message": "境外标的需要提供企业名称和目的国"}
+            entity = EntityOverseas(
+                tenant_id=tenant_id,
+                overseas_name_cn=company_name,
+                overseas_name_en=overseas_name_en,
+                target_country=target_country,
+                overseas_industry_code=overseas_industry_code,
+                registered_capital=registered_capital,
+                currency=currency,
+            )
+            self.db.add(entity)
+        else:
+            return {"type": "error", "message": f"未知主体类型: {entity_type}"}
+        await self.db.flush()
+        return {
+            "type": "entity_created",
+            "entity_type": entity_type,
+            "entity_id": str(entity.entity_id),
+            "company_name": company_name,
+            "uscc": uscc,
+            "legal_representative": legal_representative,
+            "registered_address": registered_address,
+        }
+
     async def execute_query_rules(self, tenant_id: UUID = None) -> Dict[str, Any]:
         """查询合规规则"""
         result = await self.db.execute(select(RulesEngine))

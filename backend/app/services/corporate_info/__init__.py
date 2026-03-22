@@ -1,0 +1,1 @@
+from app.services.corporate_info.service import corporate_info_service

@@ -225,6 +225,9 @@ async def chat_endpoint(
     except Exception as e:
         await db.rollback()
         logger.exception("chat_endpoint error: %s", e)
+        import traceback
+
+        logger.exception("Traceback: %s", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"chat_endpoint error: {e}")
 
 
