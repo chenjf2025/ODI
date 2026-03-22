@@ -36,6 +36,50 @@
       </a-steps>
     </div>
 
+    <!-- 本环节所需文件 -->
+    <div class="page-card" style="margin-bottom: 16px" v-if="currentStepDocs">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-weight:600">📋 {{ currentStepDocs.step_name }} - 所需文件</h3>
+        <a-tag :color="currentStepDocs.documents.length >= currentStepDocs.requirements.filter(r=>r.required).length ? 'green' : 'orange'">
+          {{ currentStepDocs.documents.length }}/{{ currentStepDocs.requirements.filter(r=>r.required).length }} 已上传
+        </a-tag>
+      </div>
+      <a-list size="small" bordered>
+        <a-list-item v-for="req in currentStepDocs.requirements" :key="req.type">
+          <a-list-item-meta>
+            <template #title>
+              <a-space>
+                <span>{{ req.name }}</span>
+                <a-tag v-if="req.required" color="red" size="small">必填</a-tag>
+                <a-tag v-else color="default" size="small">选填</a-tag>
+              </a-space>
+            </template>
+            <template #description>
+              <span style="color:var(--text-muted);font-size:12px">{{ req.description }}</span>
+            </template>
+          </a-list-item-meta>
+          <template #actions>
+            <div v-if="currentStepDocs.documents.find(d => d.document_type === req.type)" style="display:flex;align-items:center;gap:8px">
+              <a-tag color="green"><FileOutlined /> {{ currentStepDocs.documents.find(d => d.document_type === req.type).document_name }}</a-tag>
+              <a-button type="text" danger size="small" @click="deleteDoc(req.type)"><DeleteOutlined /></a-button>
+            </div>
+            <a-upload
+              v-else
+              :showUploadList="false"
+              :customRequest="(opt) => uploadDoc(req.type, req.name, opt)"
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            >
+              <a-button size="small"><UploadOutlined /> 上传</a-button>
+            </a-upload>
+          </template>
+        </a-list-item>
+      </a-list>
+      <div v-if="currentStepDocs.documents.find(d => d.review_result)" style="margin-top:12px;padding:12px;background:var(--bg-primary);border-radius:8px">
+        <b style="font-size:13px">AI 审核结果：</b>
+        <div style="margin-top:8px;white-space:pre-wrap;font-size:13px;color:var(--text-secondary)">{{ currentStepDocs.documents[0].review_result }}</div>
+      </div>
+    </div>
+
     <a-row :gutter="[16, 16]">
       <!-- 项目信息 -->
       <a-col :xs="24" :lg="14">
@@ -53,9 +97,9 @@
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
             <h3 style="font-weight: 600">AI 生成报告</h3>
             <a-space>
-              <a-button type="primary" size="small" @click="runPreReview" :loading="aiLoading">智能预审</a-button>
-              <a-button size="small" @click="generateReport('feasibility')" :loading="aiLoading">生成可研报告</a-button>
-              <a-button size="small" @click="generateReport('due_diligence')" :loading="aiLoading">生成尽调报告</a-button>
+              <a-button type="primary" size="small" @click="runPreReview" :loading="loadingTypes.pre_review">智能预审</a-button>
+              <a-button size="small" @click="generateReport('feasibility')" :loading="loadingTypes.feasibility">生成可研报告</a-button>
+              <a-button size="small" @click="generateReport('due_diligence')" :loading="loadingTypes.due_diligence">生成尽调报告</a-button>
             </a-space>
           </div>
 
@@ -170,6 +214,9 @@
     </a-modal>
   </div>
   <a-spin v-else style="display:flex;justify-content:center;margin-top:100px" />
+
+  <!-- PDF 导出专用隐藏区域 -->
+  <div ref="pdfExportRef" style="position:absolute;left:-9999px;top:0;width:794px;padding:20px;background:white"></div>
 </template>
 
 <script setup>
@@ -177,7 +224,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { projectsApi, aiApi, exportApi, uploadApi } from '../api'
 import { message } from 'ant-design-vue'
-import { DownOutlined, FilePdfOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { DownOutlined, FilePdfOutlined, UploadOutlined, FileOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { marked } from 'marked'
 
 // 配置 marked
@@ -189,7 +236,7 @@ marked.setOptions({
 const route = useRoute()
 const project = ref(null)
 const statusLogs = ref([])
-const aiLoading = ref(false)
+const loadingTypes = ref({ pre_review: false, feasibility: false, due_diligence: false })
 const showTransition = ref(false)
 const transitioning = ref(false)
 const transitionRemark = ref('')
@@ -198,11 +245,13 @@ const mofcomUrl = ref('')
 const ndrcFileList = ref([])
 const mofcomFileList = ref([])
 const activeReportKeys = ref(['pre_review', 'feasibility', 'due_diligence'])
+const currentStepDocs = ref(null)
 
 // 报告容器 refs (用于 PDF 导出)
 const preReviewRef = ref(null)
 const feasibilityRef = ref(null)
 const dueDiligenceRef = ref(null)
+const pdfExportRef = ref(null)
 
 const STATUS_LIST = [
   'PRE_REVIEW', 'DATA_COLLECTION', 'NDRC_FILING_PENDING', 'NDRC_APPROVED',
@@ -224,6 +273,8 @@ const hasAnyReport = computed(() =>
 
 onMounted(fetchProject)
 
+const TRAFFIC_MAP = { GREEN: '低风险 - 建议推进', YELLOW: '中风险 - 需关注', RED: '高风险 - 谨慎评估' }
+
 function renderMarkdown(text) {
   if (!text) return ''
   return marked.parse(text)
@@ -234,51 +285,50 @@ function trafficColor(light) {
 }
 
 async function exportPDF(type) {
+  if (!pdfExportRef.value) return
   const html2pdf = (await import('html2pdf.js')).default
+  const nameMap = { pre_review: '智能预审报告', feasibility: '可行性研究报告', due_diligence: '尽职调查报告' }
+  const proj = project.value
 
-  const refMap = {
-    pre_review: preReviewRef,
-    feasibility: feasibilityRef,
-    due_diligence: dueDiligenceRef,
-  }
-  const nameMap = {
-    pre_review: '智能预审报告',
-    feasibility: '可行性研究报告',
-    due_diligence: '尽职调查报告',
-  }
-
-  const targetRef = refMap[type]
-  if (!targetRef?.value) {
-    message.warning('请先展开报告面板')
-    return
-  }
-
-  // 确保面板展开
-  if (!activeReportKeys.value.includes(type)) {
-    activeReportKeys.value = [...activeReportKeys.value, type]
-    await nextTick()
+  let exportHTML = ''
+  if (type === 'pre_review' && proj?.pre_review_report) {
+    const pr = proj.pre_review_report
+    const trafficColor = pr.traffic_light === 'GREEN' ? '#52c41a' : pr.traffic_light === 'YELLOW' ? '#faad14' : '#ff4d4f'
+    exportHTML = `
+      <div style="font-family:'Noto Sans SC',Arial,sans-serif;padding:0;color:#1a1a1a;">
+        ${pr.asset_warning ? `<div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;">⚠️ ${pr.asset_warning}</div>` : ''}
+        <div style="margin-bottom:16px;font-size:18px;font-weight:700;">
+          <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${trafficColor};margin-right:8px;vertical-align:middle;"></span>
+          ${TRAFFIC_MAP[pr.traffic_light] || pr.traffic_light}
+        </div>
+        <div class="markdown-body">${renderMarkdown(pr.ai_analysis || '')}</div>
+      </div>`
+  } else if (type === 'feasibility' && proj?.feasibility_report) {
+    exportHTML = `<div style="font-family:'Noto Sans SC',Arial,sans-serif;"><div class="markdown-body">${renderMarkdown(proj.feasibility_report)}</div></div>`
+  } else if (type === 'due_diligence' && proj?.due_diligence_report) {
+    exportHTML = `<div style="font-family:'Noto Sans SC',Arial,sans-serif;"><div class="markdown-body">${renderMarkdown(proj.due_diligence_report)}</div></div>`
   }
 
+  if (!exportHTML) return
+
+  const CSS = `body{font-family:'Noto Sans SC',Arial,sans-serif;margin:0;padding:20px;color:#1a1a1a}.markdown-body{font-family:'Noto Sans SC',Arial,sans-serif}.markdown-body h1{font-size:22px;font-weight:700;margin:24px 0 12px;padding-bottom:8px;border-bottom:2px solid #e8e8e8}.markdown-body h2{font-size:18px;font-weight:700;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid #e8e8e8}.markdown-body h3{font-size:16px;font-weight:600;margin:16px 0 8px}.markdown-body h4{font-size:14px;font-weight:600;margin:12px 0 6px}.markdown-body p{margin:8px 0;line-height:1.8}.markdown-body ul,.markdown-body ol{padding-left:24px;margin:8px 0}.markdown-body li{margin:4px 0}.markdown-body blockquote{border-left:4px solid #1a56db;padding:8px 16px;margin:12px 0;background:#f8faff;border-radius:0 6px 6px 0}.markdown-body table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}.markdown-body th,.markdown-body td{border:1px solid #e8e8e8;padding:8px 12px;text-align:left}.markdown-body th{background:#fafafa;font-weight:600}.markdown-body code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:13px}.markdown-body pre{background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0}.markdown-body pre code{background:none;padding:0;color:inherit}.markdown-body hr{border:none;border-top:1px solid #e8e8e8;margin:16px 0}`
+  const el = pdfExportRef.value
+  el.innerHTML = `<style>${CSS}</style><div style="font-family:'Noto Sans SC',Arial,sans-serif;color:#1a1a1a;">${exportHTML}</div>`
+  const origStyle = el.style.cssText
+  el.style.cssText = 'position:fixed;left:0;top:0;width:210mm;padding:20px;background:white;z-index:9999;box-sizing:border-box'
+  await nextTick()
   message.loading({ content: '正在生成 PDF...', key: 'pdf', duration: 0 })
-
-  const filename = `${project.value.project_name}-${nameMap[type]}.pdf`
-
+  const filename = `${proj.project_name}-${nameMap[type]}.pdf`
   try {
     await html2pdf()
-      .set({
-        margin: [15, 15, 15, 15],
-        filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      })
-      .from(targetRef.value)
+      .set({ margin: [10, 10, 10, 10], filename, html2canvas: { scale: 2, useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } })
+      .from(el.lastElementChild || el)
       .save()
-
     message.success({ content: 'PDF 导出成功', key: 'pdf' })
   } catch (e) {
-    message.error({ content: 'PDF 导出失败', key: 'pdf' })
+    message.error({ content: `PDF 导出失败: ${e.message}`, key: 'pdf' })
+  } finally {
+    el.style.cssText = origStyle
   }
 }
 
@@ -287,8 +337,67 @@ async function fetchProject() {
     const { data } = await projectsApi.get(route.params.id)
     project.value = data
     statusLogs.value = data.status_logs || []
+    await fetchStepDocs()
   } catch (e) {
     message.error('获取项目详情失败')
+  }
+}
+
+const STEP_NAME_MAP = {
+  PRE_REVIEW: '智能预审', DATA_COLLECTION: '材料准备', NDRC_FILING_PENDING: '发改委备案',
+  NDRC_APPROVED: '发改委通过', MOFCOM_FILING_PENDING: '商务部备案', MOFCOM_APPROVED: '商务部通过',
+  BANK_REG_PENDING: '银行登记', FUNDS_REMITTED: '资金汇出', POST_INVESTMENT: '投后管理',
+}
+
+async function fetchStepDocs() {
+  if (!project.value) return
+  try {
+    const { data } = await projectsApi.getDocuments(project.value.project_id)
+    const currentStatus = project.value.status
+    const stepData = data.find(s => s.step_status === currentStatus)
+    if (stepData) {
+      currentStepDocs.value = {
+        ...stepData,
+        step_name: STEP_NAME_MAP[stepData.step_status] || stepData.step_status,
+      }
+    } else {
+      currentStepDocs.value = null
+    }
+  } catch (e) {
+    currentStepDocs.value = null
+  }
+}
+
+async function uploadDoc(docType, docName, options) {
+  const { file, onSuccess, onError } = options
+  try {
+    const { data: fileData } = await uploadApi.uploadFile(file)
+    if (!fileData.success) throw new Error('上传失败')
+    await projectsApi.uploadDocument(project.value.project_id, {
+      step_status: project.value.status,
+      document_type: docType,
+      document_name: docName,
+      file_url: fileData.url,
+      file_size: file.size,
+    })
+    message.success(`${file.name} 上传成功`)
+    await fetchStepDocs()
+    onSuccess(fileData, file)
+  } catch (e) {
+    message.error(`${file.name} 上传失败`)
+    onError(e)
+  }
+}
+
+async function deleteDoc(docType) {
+  const doc = currentStepDocs.value?.documents?.find(d => d.document_type === docType)
+  if (!doc) return
+  try {
+    await projectsApi.deleteDocument(project.value.project_id, doc.document_id)
+    message.success('删除成功')
+    await fetchStepDocs()
+  } catch (e) {
+    message.error('删除失败')
   }
 }
 
@@ -339,14 +448,19 @@ async function handleTransition() {
     mofcomFileList.value = []
     await fetchProject()
   } catch (e) {
-    message.error(e.response?.data?.detail || '操作失败')
+    const detail = e.response?.data?.detail
+    if (detail && typeof detail === 'object') {
+      message.error(detail.message || detail.error || '操作失败')
+    } else {
+      message.error(detail || '操作失败')
+    }
   } finally {
     transitioning.value = false
   }
 }
 
 async function runPreReview() {
-  aiLoading.value = true
+  loadingTypes.value.pre_review = true
   try {
     await aiApi.preReview({ project_id: project.value.project_id })
     message.success('预审完成')
@@ -354,12 +468,12 @@ async function runPreReview() {
   } catch (e) {
     message.error(e.response?.data?.detail?.message || e.response?.data?.detail || '预审失败')
   } finally {
-    aiLoading.value = false
+    loadingTypes.value.pre_review = false
   }
 }
 
 async function generateReport(type) {
-  aiLoading.value = true
+  loadingTypes.value[type] = true
   try {
     await aiApi.generateReport({ project_id: project.value.project_id, report_type: type })
     message.success('报告生成成功')
@@ -367,7 +481,7 @@ async function generateReport(type) {
   } catch (e) {
     message.error(e.response?.data?.detail?.message || e.response?.data?.detail || '生成失败')
   } finally {
-    aiLoading.value = false
+    loadingTypes.value[type] = false
   }
 }
 

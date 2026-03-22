@@ -40,6 +40,10 @@ export const projectsApi = {
     create: data => api.post('/projects', data),
     updateStatus: (id, data) => api.put(`/projects/${id}/status`, data),
     delete: id => api.delete(`/projects/${id}`),
+    // 项目文档
+    getDocuments: (projectId) => api.get(`/projects/${projectId}/documents`),
+    uploadDocument: (projectId, data) => api.post(`/projects/${projectId}/documents`, data),
+    deleteDocument: (projectId, documentId) => api.delete(`/projects/${projectId}/documents/${documentId}`),
 }
 
 // ===== Entities =====

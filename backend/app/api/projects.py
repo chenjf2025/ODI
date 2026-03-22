@@ -2,8 +2,11 @@
 项目管理 API - CRUD / 状态流转 / 文件上传
 """
 
+import logging
 from uuid import UUID
 from typing import Optional, List
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,7 +100,8 @@ async def update_status(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    doc_review = await review_documents_for_step(db, project_id, data.target_status)
+    current_step = str(project.status)
+    doc_review = await review_documents_for_step(db, project_id, current_step)
     if not doc_review.get("passed"):
         raise HTTPException(
             status_code=400,
