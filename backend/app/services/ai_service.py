@@ -3,6 +3,7 @@ AI 业务服务层 - 智能预审、报告生成、财务数据抽取
 """
 
 import json
+from datetime import datetime
 import logging
 import re
 from typing import Optional, Dict, List, Any
@@ -222,7 +223,9 @@ class AIService:
     def _build_pre_review_prompt(
         self, project, domestic, overseas, rules_result, asset_warning
     ):
-        parts = ["请对以下 ODI 境外投资项目进行合规预审分析：\n"]
+        parts = [
+            f"分析日期：{datetime.now().strftime('%Y年%m月%d日')}\n请对以下 ODI 境外投资项目进行合规预审分析：\n"
+        ]
         parts.append(f"项目名称：{project.project_name}")
         parts.append(f"拟投资金额：{project.investment_amount} {project.currency}")
         parts.append(f"投资架构：{project.investment_path}")
@@ -258,7 +261,9 @@ class AIService:
         return "\n".join(parts)
 
     def _build_feasibility_prompt(self, project, domestic, overseas):
-        parts = ["请根据以下信息撰写一份完整的《境外投资项目可行性研究报告》：\n"]
+        parts = [
+            f"报告生成日期：{datetime.now().strftime('%Y年%m月%d日')}\n请根据以下信息撰写一份完整的《境外投资项目可行性研究报告》：\n"
+        ]
         parts.append(f"项目名称：{project.project_name}")
         parts.append(f"投资金额：{project.investment_amount} {project.currency}")
         parts.append(f"投资架构：{project.investment_path}")
@@ -290,7 +295,9 @@ class AIService:
         return "\n".join(parts)
 
     def _build_due_diligence_prompt(self, project, domestic, overseas):
-        parts = ["请根据以下信息撰写一份完整的《境外投资尽职调查报告》：\n"]
+        parts = [
+            f"报告生成日期：{datetime.now().strftime('%Y年%m月%d日')}\n请根据以下信息撰写一份完整的《境外投资尽职调查报告》：\n"
+        ]
         parts.append(f"项目名称：{project.project_name}")
 
         if domestic:

@@ -7,12 +7,8 @@ from typing import Any, Union
 
 
 def utc_now() -> datetime:
-    """Return current UTC time as timezone-aware datetime (Python 3.12+ compatible).
-
-    Replaces deprecated datetime.utcnow() which produces naive datetimes and
-    triggers DeprecationWarning in Python 3.12+.
-    """
-    return datetime.now(timezone.utc)
+    """Return current UTC time as timezone-naive datetime (compatible with DB TIMESTAMP columns)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def enum_value(e: Union[Any, str]) -> str:
