@@ -467,7 +467,7 @@ async def chat(
                 if "error" in dify_result:
                     response_text = f"Dify 服务调用失败：{dify_result['error']}"
                 else:
-                    response_text = dify_result.get("response", "Dify 未返回有效响应")
+                    response_text = dify_result.get("answer", "Dify 未返回有效响应")
                     actions_results.append({"type": "dify_chat", "chunks": chunks})
             else:
                 context = dify_service.build_context_from_chunks(chunks)

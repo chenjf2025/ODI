@@ -32,6 +32,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://odi_user:odi_pass_dev@db:5432/odi_saas
       DATABASE_SYNC_URL: postgresql://odi_user:odi_pass_dev@db:5432/odi_saas
       APP_ENV: ${APP_ENV:-development}
+      DIFY_API_KEY: ${DIFY_API_KEY:-}
+      DIFY_BASE_URL: ${DIFY_BASE_URL:-http://host.docker.internal:8080}
+      DIFY_APP_ID: ${DIFY_APP_ID:-}
+      DIFY_DATASET_ID: ${DIFY_DATASET_ID:-}
     depends_on:
       db:
         condition: service_healthy
