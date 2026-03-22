@@ -96,7 +96,18 @@ async function runAI(type) {
     message.success('AI 任务完成')
     await loadProject()
   } catch (e) {
-    message.error(e.response?.data?.detail?.message || e.response?.data?.detail || 'AI 任务失败')
+    const detail = e.response?.data?.detail
+    let errMsg = 'AI 任务失败'
+    if (typeof detail === 'string') {
+      errMsg = detail
+    } else if (detail?.message) {
+      errMsg = detail.message
+    } else if (e.message) {
+      errMsg = e.message.includes('timeout') ? '请求超时，请稍后重试' : e.message
+    } else if (!e.response) {
+      errMsg = '网络错误，请检查连接后重试'
+    }
+    message.error(errMsg)
   } finally { loading.value = false }
 }
 
