@@ -382,6 +382,9 @@ class ChatRequest(BaseModel):
         default=None, description="附件列表"
     )
     context_project_id: Optional[str] = Field(default=None, description="上下文项目ID")
+    session_id: Optional[str] = Field(
+        default=None, description="会话ID，不传则创建新会话"
+    )
 
 
 class ChatResponse(BaseModel):
@@ -390,3 +393,5 @@ class ChatResponse(BaseModel):
     confidence: float
     actions: List[Any] = Field(default_factory=list)
     usage: Optional[Dict[str, int]] = None
+    session_id: Optional[str] = None
+    suggestions: List[str] = Field(default_factory=list)

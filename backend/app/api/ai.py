@@ -1,10 +1,12 @@
 """
-AI 服务 API - 预审 / 报告生成 / 财务数据抽取
+AI 服务 API - 预审 / 报告生成 / 财务数据抽取 / 对话历史
 """
 
 from uuid import UUID
 from datetime import datetime
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -24,6 +26,7 @@ from app.middleware.auth import get_current_user, require_roles
 from app.services.project_service import ProjectService
 from app.services.billing_service import BillingService
 from app.services.ai_service import ai_service
+from app.services.conversation_service import ConversationService
 from app.utils import utc_now
 
 router = APIRouter(prefix="/api/ai", tags=["AI 服务"])
@@ -143,6 +146,31 @@ async def chat_endpoint(
 ):
     """统一 AI 对话入口 — 意图分类 + 动作执行 + LLM 回复"""
     from app.services.ai_service import chat
+    from app.services.conversation_service import ConversationService
+
+    conv_service = ConversationService(db)
+    session_id = UUID(data.session_id) if data.session_id else None
+
+    if session_id:
+        session = await conv_service.get_session_with_messages(
+            session_id, current_user.tenant_id
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="会话不存在")
+    else:
+        first_msg = data.messages[0].content if data.messages else "新对话"
+        session = await conv_service.create_session(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.user_id,
+            first_message=first_msg,
+        )
+
+    for m in data.messages:
+        await conv_service.add_message(
+            session_id=session.session_id,
+            role=m.role,
+            content=m.content,
+        )
 
     result = await chat(
         db=db,
@@ -153,5 +181,147 @@ async def chat_endpoint(
         if data.attachments
         else None,
         context_project_id=data.context_project_id,
+        session_id=session.session_id,
     )
+
+    last_user_msg = next(
+        (m.content for m in reversed(data.messages) if m.role == "user"), ""
+    )
+    await conv_service.add_message(
+        session_id=session.session_id,
+        role="assistant",
+        content=result["content"],
+        intent=result.get("intent"),
+        confidence=str(result.get("confidence", "")),
+    )
+
+    suggestions = conv_service.generate_suggestions(
+        result.get("intent", "general_chat"), last_user_msg
+    )
+
+    result["session_id"] = str(session.session_id)
+    result["suggestions"] = suggestions
+    await db.commit()
     return result
+
+
+class ConversationListOut(BaseModel):
+    session_id: str
+    title: Optional[str] = None
+    updated_at: datetime
+    message_count: int = 0
+
+
+class MessageOut(BaseModel):
+    message_id: str
+    role: str
+    content: str
+    intent: Optional[str] = None
+    created_at: datetime
+
+
+class ConversationDetailOut(BaseModel):
+    session_id: str
+    title: Optional[str] = None
+    updated_at: datetime
+    messages: List[MessageOut] = []
+
+
+@router.get("/conversations", response_model=List[ConversationListOut])
+async def list_conversations(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取会话列表"""
+    conv_service = ConversationService(db)
+    sessions = await conv_service.get_sessions(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.user_id,
+    )
+    return [
+        ConversationListOut(
+            session_id=str(s.session_id),
+            title=s.title,
+            updated_at=s.updated_at or s.created_at,
+            message_count=len(s.messages) if s.messages else 0,
+        )
+        for s in sessions
+    ]
+
+
+@router.get("/conversations/{session_id}", response_model=ConversationDetailOut)
+async def get_conversation(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取会话详情（含完整消息）"""
+    conv_service = ConversationService(db)
+    session = await conv_service.get_session_with_messages(
+        session_id=session_id,
+        tenant_id=current_user.tenant_id,
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    return ConversationDetailOut(
+        session_id=str(session.session_id),
+        title=session.title,
+        updated_at=session.updated_at or session.created_at,
+        messages=[
+            MessageOut(
+                message_id=str(m.message_id),
+                role=m.role,
+                content=m.content,
+                intent=m.intent,
+                created_at=m.created_at,
+            )
+            for m in (session.messages or [])
+        ],
+    )
+
+
+class FeedbackRequest(BaseModel):
+    rating: str = Field(..., pattern="^(like|dislike)$")
+    comment: Optional[str] = None
+
+
+@router.post("/conversations/{session_id}/feedback")
+async def submit_feedback(
+    session_id: UUID,
+    data: FeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """提交对话反馈（点赞/点踩）"""
+    conv_service = ConversationService(db)
+    session = await conv_service.get_session_with_messages(
+        session_id, current_user.tenant_id
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    await conv_service.submit_feedback(
+        session_id=session_id,
+        user_id=current_user.user_id,
+        rating=data.rating,
+        comment=data.comment,
+    )
+    await db.commit()
+    return {"message": "反馈已提交，谢谢！"}
+
+
+@router.delete("/conversations/{session_id}")
+async def delete_conversation(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """删除会话（软删除）"""
+    conv_service = ConversationService(db)
+    await conv_service.delete_session(
+        session_id=session_id,
+        tenant_id=current_user.tenant_id,
+    )
+    await db.commit()
+    return {"message": "会话已删除"}

@@ -62,6 +62,14 @@ export const aiApi = {
     chat: data => api.post('/ai/chat', data),
 }
 
+// ===== AI Conversations =====
+export const conversationsApi = {
+    list: () => api.get('/ai/conversations'),
+    get: (sessionId) => api.get(`/ai/conversations/${sessionId}`),
+    submitFeedback: (sessionId, data) => api.post(`/ai/conversations/${sessionId}/feedback`, data),
+    delete: (sessionId) => api.delete(`/ai/conversations/${sessionId}`),
+}
+
 // ===== Rules =====
 export const rulesApi = {
     list: (params) => api.get('/rules', { params }),

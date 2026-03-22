@@ -352,6 +352,7 @@ async def chat(
     messages: List[Dict[str, str]],
     attachments: Optional[List[Dict]] = None,
     context_project_id: Optional[str] = None,
+    session_id=None,
 ) -> Dict[str, Any]:
     from app.services.intent_classifier import intent_classifier, Intent
     from app.services.action_executor import ActionExecutor
