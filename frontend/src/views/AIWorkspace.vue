@@ -25,24 +25,29 @@
                     <PaperClipOutlined /> {{ att.filename }}
                   </div>
                 </div>
-                <div v-if="msg.role === 'assistant'" class="msg-actions">
+                <div :class="['msg-actions', msg.role]">
                   <a-tooltip title="复制">
                     <a-button type="text" size="small" class="msg-action-btn" @click="copyMessage(msg.content)">
                       <template v-if="copiedMsgId === i"><CheckOutlined /></template>
                       <template v-else><CopyOutlined /></template>
                     </a-button>
                   </a-tooltip>
-                  <a-tooltip title="重新生成">
+                  <a-tooltip v-if="msg.role === 'user'" title="修改后重发">
+                    <a-button type="text" size="small" class="msg-action-btn" @click="editMessage(msg.content)">
+                      <EditOutlined />
+                    </a-button>
+                  </a-tooltip>
+                  <a-tooltip v-if="msg.role === 'assistant'" title="重新生成">
                     <a-button type="text" size="small" class="msg-action-btn" @click="regenerateMessage">
                       <ReloadOutlined />
                     </a-button>
                   </a-tooltip>
-                  <a-tooltip title="有帮助">
+                  <a-tooltip v-if="msg.role === 'assistant'" title="有帮助">
                     <a-button type="text" size="small" class="msg-action-btn" @click="submitFeedback('like')">
                       <LikeOutlined />
                     </a-button>
                   </a-tooltip>
-                  <a-tooltip title="没帮助">
+                  <a-tooltip v-if="msg.role === 'assistant'" title="没帮助">
                     <a-button type="text" size="small" class="msg-action-btn" @click="submitFeedback('dislike')">
                       <DislikeOutlined />
                     </a-button>
@@ -135,7 +140,8 @@ import { aiApi, uploadApi, projectsApi, conversationsApi } from '../api'
 import {
   RobotOutlined, UserOutlined, SendOutlined, PaperClipOutlined,
   ClearOutlined, CloseCircleOutlined, CopyOutlined, CheckOutlined,
-  ReloadOutlined, LikeOutlined, DislikeOutlined, PlusOutlined, DeleteOutlined
+  ReloadOutlined, LikeOutlined, DislikeOutlined, PlusOutlined, DeleteOutlined,
+  EditOutlined
 } from '@ant-design/icons-vue'
 
 const messages = ref([])
@@ -309,6 +315,10 @@ function copyMessage(content) {
   message.success('已复制')
 }
 
+function editMessage(content) {
+  inputText.value = content
+}
+
 async function submitFeedback(rating) {
   if (!currentSessionId.value) {
     message.warning('请先开始一次对话再提交反馈')
@@ -450,6 +460,8 @@ function formatTime(ts) {
 .message-bubble:hover .msg-actions { display: flex; }
 .msg-action-btn { font-size: 12px; padding: 0 4px; color: var(--text-secondary); }
 .msg-action-btn:hover { color: var(--primary-color); }
+.message-row.user .msg-action-btn { color: rgba(255,255,255,0.7); }
+.message-row.user .msg-action-btn:hover { color: #fff; }
 .suggestions-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); }
 .suggestions-label { font-size: 12px; color: var(--text-secondary); }
 .suggestion-chip { cursor: pointer; font-size: 12px; }
