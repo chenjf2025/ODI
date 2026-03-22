@@ -21,9 +21,9 @@
           <a-divider />
           <h4 style="margin-bottom: 12px">AI 操作</h4>
           <a-space direction="vertical" style="width: 100%">
-            <a-button type="primary" block :disabled="!selectedProjectId" :loading="loading" @click="runAI('pre_review')">🔍 智能预审</a-button>
-            <a-button block :disabled="!selectedProjectId" :loading="loading" @click="runAI('feasibility')">📋 生成可研报告</a-button>
-            <a-button block :disabled="!selectedProjectId" :loading="loading" @click="runAI('due_diligence')">📑 生成尽调报告</a-button>
+            <a-button type="primary" block :disabled="!selectedProjectId" :loading="loadingTypes.pre_review" @click="runAI('pre_review')">🔍 智能预审</a-button>
+            <a-button block :disabled="!selectedProjectId" :loading="loadingTypes.feasibility" @click="runAI('feasibility')">📋 生成可研报告</a-button>
+            <a-button block :disabled="!selectedProjectId" :loading="loadingTypes.due_diligence" @click="runAI('due_diligence')">📑 生成尽调报告</a-button>
           </a-space>
         </div>
       </a-col>
@@ -67,7 +67,7 @@ import { message } from 'ant-design-vue'
 const projects = ref([])
 const selectedProjectId = ref(null)
 const selectedProject = ref(null)
-const loading = ref(false)
+const loadingTypes = ref({ pre_review: false, feasibility: false, due_diligence: false })
 const reportContent = ref('')
 const preReviewResult = ref(null)
 
@@ -84,7 +84,9 @@ async function loadProject() {
 }
 
 async function runAI(type) {
-  loading.value = true; reportContent.value = ''; preReviewResult.value = null
+  loadingTypes.value[type] = true
+  reportContent.value = ''
+  preReviewResult.value = null
   try {
     if (type === 'pre_review') {
       const { data } = await aiApi.preReview({ project_id: selectedProjectId.value })
@@ -98,7 +100,9 @@ async function runAI(type) {
   } catch (e) {
     const detail = e.response?.data?.detail
     let errMsg = 'AI 任务失败'
-    if (typeof detail === 'string') {
+    if (e.response?.status === 402 && detail?.error === 'INSUFFICIENT_FUNDS') {
+      errMsg = `余额不足：当前 ${detail.current_balance} 点，需要 ${detail.required} 点，请充值`
+    } else if (typeof detail === 'string') {
       errMsg = detail
     } else if (detail?.message) {
       errMsg = detail.message
@@ -108,7 +112,9 @@ async function runAI(type) {
       errMsg = '网络错误，请检查连接后重试'
     }
     message.error(errMsg)
-  } finally { loading.value = false }
+  } finally {
+    loadingTypes.value[type] = false
+  }
 }
 
 function statusName(s) {
