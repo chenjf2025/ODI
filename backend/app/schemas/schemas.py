@@ -392,6 +392,6 @@ class ChatResponse(BaseModel):
     intent: str
     confidence: float
     actions: List[Any] = Field(default_factory=list)
-    usage: Optional[Dict[str, int]] = None
+    usage: Optional[Any] = None
     session_id: Optional[str] = None
     suggestions: List[str] = Field(default_factory=list)

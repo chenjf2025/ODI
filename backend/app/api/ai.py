@@ -145,64 +145,87 @@ async def chat_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     """统一 AI 对话入口 — 意图分类 + 动作执行 + LLM 回复"""
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     from app.services.ai_service import chat
     from app.services.conversation_service import ConversationService
 
-    conv_service = ConversationService(db)
-    session_id = UUID(data.session_id) if data.session_id else None
+    try:
+        conv_service = ConversationService(db)
+        session_id = UUID(data.session_id) if data.session_id else None
 
-    if session_id:
-        session = await conv_service.get_session_with_messages(
-            session_id, current_user.tenant_id
-        )
-        if not session:
-            raise HTTPException(status_code=404, detail="会话不存在")
-    else:
-        first_msg = data.messages[0].content if data.messages else "新对话"
-        session = await conv_service.create_session(
+        if session_id:
+            session = await conv_service.get_session_with_messages(
+                session_id, current_user.tenant_id
+            )
+            if not session:
+                raise HTTPException(status_code=404, detail="会话不存在")
+        else:
+            first_msg = data.messages[0].content if data.messages else "新对话"
+            session = await conv_service.create_session(
+                tenant_id=current_user.tenant_id,
+                user_id=current_user.user_id,
+                first_message=first_msg,
+            )
+
+        for m in data.messages:
+            await conv_service.add_message(
+                session_id=session.session_id,
+                role=m.role,
+                content=m.content,
+            )
+
+        result = await chat(
+            db=db,
             tenant_id=current_user.tenant_id,
             user_id=current_user.user_id,
-            first_message=first_msg,
+            messages=[m.model_dump() for m in data.messages],
+            attachments=[a.model_dump() for a in data.attachments]
+            if data.attachments
+            else None,
+            context_project_id=data.context_project_id,
+            session_id=session.session_id,
         )
 
-    for m in data.messages:
+        last_user_msg = next(
+            (m.content for m in reversed(data.messages) if m.role == "user"), ""
+        )
         await conv_service.add_message(
             session_id=session.session_id,
-            role=m.role,
-            content=m.content,
+            role="assistant",
+            content=result.get("content") or "",
+            intent=result.get("intent"),
+            confidence=str(result.get("confidence", ""))
+            if result.get("confidence") is not None
+            else None,
         )
 
-    result = await chat(
-        db=db,
-        tenant_id=current_user.tenant_id,
-        user_id=current_user.user_id,
-        messages=[m.model_dump() for m in data.messages],
-        attachments=[a.model_dump() for a in data.attachments]
-        if data.attachments
-        else None,
-        context_project_id=data.context_project_id,
-        session_id=session.session_id,
-    )
+        suggestions = conv_service.generate_suggestions(
+            result.get("intent", "general_chat"), last_user_msg
+        )
 
-    last_user_msg = next(
-        (m.content for m in reversed(data.messages) if m.role == "user"), ""
-    )
-    await conv_service.add_message(
-        session_id=session.session_id,
-        role="assistant",
-        content=result["content"],
-        intent=result.get("intent"),
-        confidence=str(result.get("confidence", "")),
-    )
-
-    suggestions = conv_service.generate_suggestions(
-        result.get("intent", "general_chat"), last_user_msg
-    )
-
-    result["session_id"] = str(session.session_id)
-    result["suggestions"] = suggestions
-    await db.commit()
-    return result
+        response_data = ChatResponse(
+            content=result.get("content") or "",
+            intent=result.get("intent") or "general_chat",
+            confidence=float(result.get("confidence", 0.0))
+            if result.get("confidence") is not None
+            else 0.0,
+            actions=result.get("actions") or [],
+            usage=result.get("usage"),
+            session_id=str(session.session_id),
+            suggestions=suggestions,
+        )
+        await db.commit()
+        return response_data
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.exception("chat_endpoint error: %s", e)
+        raise HTTPException(status_code=500, detail=f"chat_endpoint error: {e}")
 
 
 class ConversationListOut(BaseModel):

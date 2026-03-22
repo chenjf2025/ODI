@@ -19,7 +19,7 @@
                 <div v-if="msg.role === 'assistant' && msg.intent" class="intent-badge">
                   <a-tag :color="intentColor(msg.intent)" size="small">{{ msg.intent }}</a-tag>
                 </div>
-                <div class="message-content" v-html="msg.role === 'user' ? escapeHtml(msg.content) : marked.parse(msg.content)" />
+                <div class="message-content" v-html="renderContent(msg)" />
                 <div v-if="msg.attachments?.length" class="attachment-preview">
                   <div v-for="att in msg.attachments" :key="att.filename" class="att-item">
                     <PaperClipOutlined /> {{ att.filename }}
@@ -231,7 +231,7 @@ async function handleSend() {
       session_id: currentSessionId.value,
     })
 
-    if (currentSessionId.value !== data.session_id) {
+    if (data.session_id && currentSessionId.value !== data.session_id) {
       currentSessionId.value = data.session_id
       try {
         const { data: sessData } = await conversationsApi.list()
@@ -241,16 +241,17 @@ async function handleSend() {
 
     messages.value.push({
       role: 'assistant',
-      content: data.content,
-      intent: data.intent,
-      confidence: data.confidence,
-      suggestions: data.suggestions || [],
+      content: (data && data.content) ? data.content : 'AI 返回内容无效',
+      intent: (data && data.intent) ? data.intent : 'error',
+      confidence: (data && data.confidence) ? data.confidence : 0,
+      suggestions: (data && Array.isArray(data.suggestions)) ? data.suggestions : [],
     })
   } catch (e) {
+    console.error('AI chat error:', e?.response?.data || e?.message || e)
     message.error('AI 服务请求失败')
     messages.value.push({
       role: 'assistant',
-      content: '抱歉，AI 服务暂时不可用，请稍后重试。',
+      content: '抱歉，AI 服务暂时不可用，请稍后重试。' + (e?.response?.data?.detail ? ' (' + e.response.data.detail + ')' : ''),
       intent: 'error',
       suggestions: [],
     })
@@ -351,6 +352,22 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
     .replace(/\n/g, '<br>')
+}
+
+function renderContent(msg) {
+  if (msg.role === 'user') {
+    return escapeHtml(msg.content)
+  }
+  const raw = msg.content || ''
+  try {
+    const result = marked.parse(raw)
+    if (result instanceof Promise) {
+      return escapeHtml(raw)
+    }
+    return result
+  } catch {
+    return escapeHtml(raw)
+  }
 }
 
 function intentColor(intent) {
