@@ -46,8 +46,8 @@
                     {{ r.rule_name || r.target_value }}
                   </a-tag>
                 </div>
-                <div v-if="selectedProject.pre_review_report.summary" style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
-                  {{ selectedProject.pre_review_report.summary }}
+                <div v-if="selectedProject.pre_review_report.ai_analysis" style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
+                  {{ selectedProject.pre_review_report.ai_analysis }}
                 </div>
               </a-tab-pane>
               <a-tab-pane key="feasibility" tab="可研报告" v-if="selectedProject.feasibility_report">
@@ -63,13 +63,18 @@
             </a-tabs>
           </div>
 
-          <div v-else-if="preReviewResult || reportContent">
-            <div v-if="preReviewResult" class="traffic-light" style="margin-bottom: 12px; font-size: 16px">
+          <div v-else-if="preReviewResult">
+            <div class="traffic-light" style="margin-bottom: 12px; font-size: 16px">
               <span class="traffic-dot" :class="preReviewResult.traffic_light?.toLowerCase()"></span>
               <span style="font-weight: 700">{{ { GREEN: '低风险 - 建议推进', YELLOW: '中风险 - 需关注', RED: '高风险 - 谨慎评估' }[preReviewResult.traffic_light] }}</span>
             </div>
-            <div v-if="reportContent" style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
-              {{ reportContent }}
+            <div v-if="preReviewResult.matched_rules?.length" style="margin-bottom: 12px">
+              <a-tag v-for="(r, i) in preReviewResult.matched_rules" :key="i" :color="{ HIGH: 'red', MEDIUM: 'orange', LOW: 'green' }[r.risk_level]" style="margin: 4px">
+                {{ r.rule_name || r.target_value }}
+              </a-tag>
+            </div>
+            <div v-if="preReviewResult.summary" style="white-space: pre-wrap; background: var(--bg-primary); padding: 16px; border-radius: 10px; font-size: 13px; max-height: 500px; overflow-y: auto">
+              {{ preReviewResult.summary }}
             </div>
           </div>
 
@@ -99,8 +104,6 @@ onMounted(async () => {
 })
 
 async function loadProject() {
-  reportContent.value = ''
-  preReviewResult.value = null
   inlineError.value = ''
   if (selectedProjectId.value) {
     try {
@@ -109,6 +112,57 @@ async function loadProject() {
       if (data.pre_review_report) {
         preReviewResult.value = data.pre_review_report
       }
+      if (data.feasibility_report) {
+        reportContent.value = data.feasibility_report
+      }
+      if (data.due_diligence_report) {
+        reportContent.value = data.due_diligence_report
+      }
+    } catch {}
+  }
+}
+
+async function runAI(type) {
+  loadingTypes.value[type] = true
+  inlineError.value = ''
+  const savedReportContent = reportContent.value
+  const savedPreReviewResult = preReviewResult.value
+  reportContent.value = ''
+  preReviewResult.value = null
+  try {
+    if (type === 'pre_review') {
+      const { data } = await aiApi.preReview({ project_id: selectedProjectId.value })
+      preReviewResult.value = data
+      activeReportTab.value = 'pre_review'
+    } else {
+      const { data } = await aiApi.generateReport({ project_id: selectedProjectId.value, report_type: type })
+      reportContent.value = data.content
+      activeReportTab.value = type
+    }
+    message.success('AI 任务完成')
+    await loadProject()
+  } catch (e) {
+    reportContent.value = savedReportContent
+    preReviewResult.value = savedPreReviewResult
+    const detail = e.response?.data?.detail
+    let errMsg = 'AI 任务失败'
+    if (e.response?.status === 402 && detail?.error === 'INSUFFICIENT_FUNDS') {
+      errMsg = `余额不足：当前 ${detail.current_balance} 点，需要 ${detail.required} 点，请到【系统配置-充值】充值点数`
+    } else if (typeof detail === 'string') {
+      errMsg = detail
+    } else if (detail?.message) {
+      errMsg = detail.message
+    } else if (e.message) {
+      errMsg = e.message.includes('timeout') ? '请求超时，请稍后重试' : e.message
+    } else if (!e.response) {
+      errMsg = '网络错误，请检查连接后重试'
+    }
+    inlineError.value = errMsg
+    message.error(errMsg)
+  } finally {
+    loadingTypes.value[type] = false
+  }
+}
       if (data.feasibility_report) {
         reportContent.value = data.feasibility_report
         activeReportTab.value = 'feasibility'
