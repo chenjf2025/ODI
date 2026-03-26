@@ -18,7 +18,7 @@ from app.middleware.auth import (
     create_refresh_token,
     get_current_user,
 )
-from app.main import limiter
+from app.limiter import limiter
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 

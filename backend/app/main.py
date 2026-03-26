@@ -8,19 +8,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.database import engine, Base, AsyncSessionLocal
+from app.limiter import limiter
 from app.services.llm.gateway import llm_gateway
 from app.services.llm.providers.deepseek import DeepSeekProvider
 from app.services.llm.providers.kimi import KimiProvider
 from app.services.llm.providers.minimax import MiniMaxProvider
 from app.models.llm_config import LLMConfig
-
-limiter = Limiter(key_func=get_remote_address)
 
 # API 路由
 from app.api.auth import router as auth_router
