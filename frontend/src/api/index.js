@@ -64,6 +64,60 @@ export const aiApi = {
     generateReport: data => api.post('/ai/generate-report', data),
     extractFinancial: data => api.post('/ai/extract-financial', data),
     chat: data => api.post('/ai/chat', data),
+    chatStream: (data, { onChunk, onDone, onError }) => {
+        const token = localStorage.getItem('token')
+        return fetch('/api/ai/chat/stream', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : '',
+            },
+            body: JSON.stringify(data),
+        }).then(resp => {
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`)
+            }
+            const reader = resp.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+
+            function read() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        if (buffer) {
+                            try {
+                                const parsed = JSON.parse(buffer)
+                                if (parsed.type === 'error') {
+                                    onError && onError(parsed.content)
+                                }
+                            } catch {}
+                        }
+                        onDone && onDone()
+                        return
+                    }
+                    buffer += decoder.decode(value, { stream: true })
+                    const lines = buffer.split('\n')
+                    buffer = lines.pop()
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6))
+                                if (data.type === 'chunk') {
+                                    onChunk && onChunk(data.content)
+                                } else if (data.type === 'error') {
+                                    onError && onError(data.content)
+                                } else if (data.type === 'done') {
+                                    onDone && onDone()
+                                }
+                            } catch {}
+                        }
+                    }
+                    read()
+                })
+            }
+            read()
+        })
+    },
 }
 
 // ===== AI Conversations =====

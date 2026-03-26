@@ -225,43 +225,54 @@ async function handleSend() {
   loading.value = true
   scrollBottom()
 
+  const assistantMsg = {
+    role: 'assistant',
+    content: '',
+    intent: 'knowledge_qa',
+    confidence: 0,
+    suggestions: [],
+  }
+  messages.value.push(assistantMsg)
+
   try {
     const history = messages.value
-      .filter(m => !m.loading)
+      .filter(m => !m.loading && m.role === 'user')
       .map(({ role, content }) => ({ role, content }))
 
-    const { data } = await aiApi.chat({
+    await aiApi.chatStream({
       messages: history,
       context_project_id: selectedProjectId.value,
       attachments: validAttachments.length ? validAttachments : null,
       session_id: currentSessionId.value,
-    })
-
-    if (data.session_id && currentSessionId.value !== data.session_id) {
-      currentSessionId.value = data.session_id
-      try {
-        const { data: sessData } = await conversationsApi.list()
-        sessions.value = sessData || []
-      } catch {}
-    }
-
-    messages.value.push({
-      role: 'assistant',
-      content: (data && data.content) ? data.content : 'AI 返回内容无效',
-      intent: (data && data.intent) ? data.intent : 'error',
-      confidence: (data && data.confidence) ? data.confidence : 0,
-      suggestions: (data && Array.isArray(data.suggestions)) ? data.suggestions : [],
+    }, {
+      onChunk: (chunk) => {
+        assistantMsg.content += chunk
+        scrollBottom()
+      },
+      onDone: () => {
+        if (assistantMsg.content && currentSessionId.value) {
+          try {
+            conversationsApi.list().then(({ data }) => {
+              sessions.value = data || []
+            })
+          } catch {}
+        }
+        loading.value = false
+        scrollBottom()
+      },
+      onError: (err) => {
+        console.error('AI chat error:', err)
+        assistantMsg.content = '抱歉，AI 服务暂时不可用，请稍后重试。 (' + err + ')'
+        assistantMsg.intent = 'error'
+        loading.value = false
+        scrollBottom()
+      }
     })
   } catch (e) {
     console.error('AI chat error:', e?.response?.data || e?.message || e)
     message.error('AI 服务请求失败')
-    messages.value.push({
-      role: 'assistant',
-      content: '抱歉，AI 服务暂时不可用，请稍后重试。' + (e?.response?.data?.detail ? ' (' + e.response.data.detail + ')' : ''),
-      intent: 'error',
-      suggestions: [],
-    })
-  } finally {
+    assistantMsg.content = '抱歉，AI 服务暂时不可用，请稍后重试。' + (e?.response?.data?.detail ? ' (' + e.response.data.detail + ')' : '')
+    assistantMsg.intent = 'error'
     loading.value = false
     scrollBottom()
   }

@@ -5,6 +5,7 @@ AI 服务 API - 预审 / 报告生成 / 财务数据抽取 / 对话历史
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -229,6 +230,52 @@ async def chat_endpoint(
 
         logger.exception("Traceback: %s", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"chat_endpoint error: {e}")
+
+
+@router.post("/chat/stream")
+async def chat_stream_endpoint(
+    data: ChatRequest,
+):
+    """流式 AI 对话入口 - SSE 模式"""
+    from fastapi.responses import StreamingResponse
+    from app.services.dify_service import dify_service
+
+    last_user_msg = next(
+        (m.content for m in reversed(data.messages) if m.role == "user"), ""
+    )
+
+    async def event_stream():
+        full_response = ""
+        intent = "knowledge_qa"
+        confidence = 0.9
+
+        try:
+            async for chunk in dify_service.chat_stream(
+                query=last_user_msg,
+                user_id=str(data.messages[0].content if data.messages else "anonymous")[
+                    :50
+                ],
+            ):
+                if chunk.startswith("error:"):
+                    yield f"data: {json.dumps({'type': 'error', 'content': chunk[6:]})}\n\n"
+                    return
+                full_response += chunk
+                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'done', 'intent': intent, 'confidence': confidence})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 class ConversationListOut(BaseModel):
