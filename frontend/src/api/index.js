@@ -171,4 +171,65 @@ export const uploadApi = {
     }
 }
 
+// ===== Departments =====
+export const departmentsApi = {
+    list: () => api.get('/departments'),
+    listFlat: () => api.get('/departments/flat'),
+    create: data => api.post('/departments', data),
+    update: (id, data) => api.put(`/departments/${id}`, data),
+    delete: id => api.delete(`/departments/${id}`),
+}
+
+// ===== Dictionaries =====
+export const dictionariesApi = {
+    listTypes: () => api.get('/dictionaries/types'),
+    list: (params) => api.get('/dictionaries', { params }),
+    create: data => api.post('/dictionaries', data),
+    update: (id, data) => api.put(`/dictionaries/${id}`, data),
+    delete: id => api.delete(`/dictionaries/${id}`),
+}
+
+// ===== Approvals =====
+export const approvalsApi = {
+    listFlows: (params) => api.get('/approvals/flows', { params }),
+    listPending: () => api.get('/approvals/flows/pending'),
+    getFlow: (id) => api.get(`/approvals/flows/${id}`),
+    createFlow: data => api.post('/approvals/flows', data),
+    approve: (id, data) => api.post(`/approvals/flows/${id}/approve`, data),
+    reject: (id, data) => api.post(`/approvals/flows/${id}/reject`, data),
+    withdraw: (id) => api.post(`/approvals/flows/${id}/withdraw`),
+}
+
+// ===== Remittances =====
+export const remittancesApi = {
+    list: (params) => api.get('/remittances', { params }),
+    create: data => api.post('/remittances', data),
+    update: (id, data) => api.put(`/remittances/${id}`, data),
+    delete: id => api.delete(`/remittances/${id}`),
+}
+
+// ===== Declarations =====
+export const declarationsApi = {
+    list: (params) => api.get('/declarations', { params }),
+    create: data => api.post('/declarations', data),
+    update: (id, data) => api.put(`/declarations/${id}`, data),
+    submit: (id) => api.post(`/declarations/${id}/submit`),
+    approve: (id) => api.post(`/declarations/${id}/approve`),
+    reject: (id, data) => api.post(`/declarations/${id}/reject`, data),
+}
+
+// ===== Logs =====
+export const logsApi = {
+    listSystemLogs: (params) => api.get('/logs/system', { params }),
+    listLoginLogs: (params) => api.get('/logs/login', { params }),
+}
+
+// ===== Sensitive Words =====
+export const sensitiveWordsApi = {
+    list: (params) => api.get('/sensitive-words', { params }),
+    create: data => api.post('/sensitive-words', data),
+    update: (id, data) => api.put(`/sensitive-words/${id}`, data),
+    delete: id => api.delete(`/sensitive-words/${id}`),
+}
+
 export default api

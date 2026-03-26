@@ -172,7 +172,107 @@
       </a-col>
     </a-row>
 
+    <a-tabs style="margin-top: 16px">
+      <a-tab-pane key="approvals" tab="审批流程">
+        <div class="page-card">
+          <div style="margin-bottom: 16px">
+            <a-space>
+              <a-button type="primary" size="small" @click="initiateApproval" :loading="loadingApprovals">发起审批</a-button>
+            </a-space>
+          </div>
+          <a-table :dataSource="projectApprovals" :columns="approvalColumns" :loading="loadingApprovals" rowKey="flow_id" :pagination="{ pageSize: 10 }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'status'">
+                <a-tag :color="approvalStatusColor(record.status)">{{ approvalStatusName(record.status) }}</a-tag>
+              </template>
+              <template v-if="column.key === 'current_level'">{{ approvalLevelName(record.current_level) }}</template>
+              <template v-if="column.key === 'created_at'">{{ new Date(record.created_at).toLocaleDateString('zh-CN') }}</template>
+            </template>
+          </a-table>
+        </div>
+      </a-tab-pane>
+      <a-tab-pane key="remittances" tab="付汇记录">
+        <div class="page-card">
+          <div style="margin-bottom: 16px">
+            <a-button type="primary" size="small" @click="showRemittanceModal = true">新增付汇</a-button>
+          </div>
+          <a-table :dataSource="projectRemittances" :columns="remittanceColumns" :loading="loadingRemittances" rowKey="record_id" :pagination="{ pageSize: 10 }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'remittance_amount'">{{ Number(record.remittance_amount).toLocaleString() }} {{ record.currency }}</template>
+              <template v-if="column.key === 'remittance_date'">{{ record.remittance_date ? new Date(record.remittance_date).toLocaleDateString('zh-CN') : '-' }}</template>
+            </template>
+          </a-table>
+        </div>
+      </a-tab-pane>
+      <a-tab-pane key="declarations" tab="申报记录">
+        <div class="page-card">
+          <div style="margin-bottom: 16px">
+            <a-button type="primary" size="small" @click="showDeclarationModal = true">新增申报</a-button>
+          </div>
+          <a-table :dataSource="projectDeclarations" :columns="declarationColumns" :loading="loadingDeclarations" rowKey="record_id" :pagination="{ pageSize: 10 }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'target'">
+                <a-tag :color="declarationTargetColor(record.target)">{{ declarationTargetName(record.target) }}</a-tag>
+              </template>
+              <template v-if="column.key === 'status'">
+                <a-tag :color="declarationStatusColor(record.status)">{{ declarationStatusName(record.status) }}</a-tag>
+              </template>
+            </template>
+          </a-table>
+        </div>
+      </a-tab-pane>
+    </a-tabs>
+
     <!-- 状态推进弹窗 -->
+    <a-modal v-model:open="showRemittanceModal" title="新增付汇" @ok="handleCreateRemittance" :confirmLoading="savingRemittance">
+      <a-form :model="remittanceForm" layout="vertical">
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="付汇金额" required>
+              <a-input-number v-model:value="remittanceForm.remittance_amount" style="width: 100%" :min="0" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="币种" required>
+              <a-select v-model:value="remittanceForm.currency">
+                <a-select-option value="USD">USD</a-select-option>
+                <a-select-option value="CNY">CNY</a-select-option>
+                <a-select-option value="HKD">HKD</a-select-option>
+                <a-select-option value="EUR">EUR</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item label="收款账户名">
+          <a-input v-model:value="remittanceForm.receiver_account_name" placeholder="请输入收款账户名" />
+        </a-form-item>
+        <a-form-item label="收款银行">
+          <a-input v-model:value="remittanceForm.receiver_bank_name" placeholder="请输入收款银行" />
+        </a-form-item>
+        <a-form-item label="收款账号">
+          <a-input v-model:value="remittanceForm.receiver_account_no" placeholder="请输入收款账号" />
+        </a-form-item>
+        <a-form-item label="付汇日期">
+          <a-date-picker v-model:value="remittanceForm.remittance_date" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal v-model:open="showDeclarationModal" title="新增申报" @ok="handleCreateDeclaration" :confirmLoading="savingDeclaration">
+      <a-form :model="declarationForm" layout="vertical">
+        <a-form-item label="申报主体" required>
+          <a-select v-model:value="declarationForm.target" placeholder="选择申报主体">
+            <a-select-option value="NDRC">发改委</a-select-option>
+            <a-select-option value="MOFCOM">商务部</a-select-option>
+            <a-select-option value="SAFE">外汇局</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-textarea v-model:value="declarationForm.remark" :rows="2" placeholder="请输入备注" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <a-modal v-model:open="showTransition" title="推进项目状态" @ok="handleTransition" :confirmLoading="transitioning">
       <p>将项目从 <a-tag>{{ statusName(project.status) }}</a-tag> 推进至 <a-tag color="blue">{{ statusName(nextStatus) }}</a-tag></p>
       
@@ -222,7 +322,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { projectsApi, aiApi, exportApi, uploadApi } from '../api'
+import { projectsApi, aiApi, exportApi, uploadApi, approvalsApi, remittancesApi, declarationsApi } from '../api'
 import { message } from 'ant-design-vue'
 import { DownOutlined, FilePdfOutlined, UploadOutlined, FileOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { marked } from 'marked'
@@ -246,6 +346,45 @@ const ndrcFileList = ref([])
 const mofcomFileList = ref([])
 const activeReportKeys = ref(['pre_review', 'feasibility', 'due_diligence'])
 const currentStepDocs = ref(null)
+const projectApprovals = ref([])
+const projectRemittances = ref([])
+const projectDeclarations = ref([])
+const loadingApprovals = ref(false)
+const loadingRemittances = ref(false)
+const loadingDeclarations = ref(false)
+const showRemittanceModal = ref(false)
+const showDeclarationModal = ref(false)
+const savingRemittance = ref(false)
+const savingDeclaration = ref(false)
+const remittanceForm = reactive({
+  remittance_amount: null,
+  currency: 'USD',
+  receiver_account_name: '',
+  receiver_bank_name: '',
+  receiver_account_no: '',
+  remittance_date: null,
+})
+const declarationForm = reactive({
+  target: null,
+  remark: '',
+})
+const approvalColumns = [
+  { title: '当前级别', key: 'current_level', width: 100 },
+  { title: '状态', key: 'status', width: 100 },
+  { title: '创建时间', key: 'created_at', width: 120 },
+]
+const remittanceColumns = [
+  { title: '付汇金额', key: 'remittance_amount', width: 150 },
+  { title: '收款账户', dataIndex: 'receiver_account_name', ellipsis: true },
+  { title: '收款银行', dataIndex: 'receiver_bank_name', ellipsis: true },
+  { title: '付汇日期', key: 'remittance_date', width: 120 },
+]
+const declarationColumns = [
+  { title: '申报主体', key: 'target', width: 100 },
+  { title: '状态', key: 'status', width: 100 },
+  { title: '回执号', dataIndex: 'receipt_no', ellipsis: true },
+  { title: '备注', dataIndex: 'remark', ellipsis: true },
+]
 
 // 报告容器 refs (用于 PDF 导出)
 const preReviewRef = ref(null)
@@ -338,9 +477,106 @@ async function fetchProject() {
     project.value = data
     statusLogs.value = data.status_logs || []
     await fetchStepDocs()
+    await Promise.all([fetchApprovals(), fetchRemittances(), fetchDeclarations()])
   } catch (e) {
     message.error('获取项目详情失败')
   }
+}
+
+async function fetchApprovals() {
+  if (!project.value) return
+  loadingApprovals.value = true
+  try {
+    const { data } = await approvalsApi.listFlows({ project_id: project.value.project_id })
+    projectApprovals.value = data || []
+  } catch {} finally { loadingApprovals.value = false }
+}
+
+async function fetchRemittances() {
+  if (!project.value) return
+  loadingRemittances.value = true
+  try {
+    const { data } = await remittancesApi.list({ project_id: project.value.project_id })
+    projectRemittances.value = data || []
+  } catch {} finally { loadingRemittances.value = false }
+}
+
+async function fetchDeclarations() {
+  if (!project.value) return
+  loadingDeclarations.value = true
+  try {
+    const { data } = await declarationsApi.list({ project_id: project.value.project_id })
+    projectDeclarations.value = data || []
+  } catch {} finally { loadingDeclarations.value = false }
+}
+
+async function initiateApproval() {
+  try {
+    await approvalsApi.createFlow({ project_id: project.value.project_id })
+    message.success('审批流程已发起')
+    await fetchApprovals()
+  } catch { message.error('发起审批失败') }
+}
+
+async function handleCreateRemittance() {
+  if (!remittanceForm.remittance_amount) {
+    message.error('请填写付汇金额')
+    return
+  }
+  savingRemittance.value = true
+  try {
+    const payload = { ...remittanceForm, project_id: project.value.project_id }
+    if (payload.remittance_date) payload.remittance_date = payload.remittance_date.format('YYYY-MM-DD')
+    await remittancesApi.create(payload)
+    message.success('付汇记录已创建')
+    showRemittanceModal.value = false
+    Object.assign(remittanceForm, { remittance_amount: null, currency: 'USD', receiver_account_name: '', receiver_bank_name: '', receiver_account_no: '', remittance_date: null })
+    await fetchRemittances()
+  } catch { message.error('创建失败') } finally { savingRemittance.value = false }
+}
+
+async function handleCreateDeclaration() {
+  if (!declarationForm.target) {
+    message.error('请选择申报主体')
+    return
+  }
+  savingDeclaration.value = true
+  try {
+    await declarationsApi.create({ ...declarationForm, project_id: project.value.project_id })
+    message.success('申报记录已创建')
+    showDeclarationModal.value = false
+    Object.assign(declarationForm, { target: null, remark: '' })
+    await fetchDeclarations()
+  } catch { message.error('创建失败') } finally { savingDeclaration.value = false }
+}
+
+function approvalStatusName(s) {
+  const map = { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', WITHDRAWN: '已撤回' }
+  return map[s] || s
+}
+function approvalStatusColor(s) {
+  const map = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red', WITHDRAWN: 'orange' }
+  return map[s] || 'default'
+}
+function approvalLevelName(l) {
+  const map = { FIRST: '一级', REVIEW: '复核', FINAL: '终审' }
+  return map[l] || l
+}
+function declarationTargetName(t) {
+  const map = { NDRC: '发改委', MOFCOM: '商务部', SAFE: '外汇局' }
+  return map[t] || t
+}
+function declarationTargetColor(t) {
+  const map = { NDRC: 'blue', MOFCOM: 'purple', SAFE: 'orange' }
+  return map[t] || 'default'
+}
+function declarationStatusName(s) {
+  const map = { PENDING: '待提交', IN_PROGRESS: '审核中', APPROVED: '已通过', REJECTED: '已驳回' }
+  return map[s] || s
+}
+function declarationStatusColor(s) {
+  const map = { PENDING: 'orange', IN_PROGRESS: 'blue', APPROVED: 'green', REJECTED: 'red' }
+  return map[s] || 'default'
 }
 
 const STEP_NAME_MAP = {

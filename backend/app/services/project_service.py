@@ -28,7 +28,6 @@ class ProjectService:
         tenant_id: UUID,
         user_id: UUID,
     ) -> ProjectInvestment:
-        """创建新项目，自动生成项目名称"""
         project_name = data.project_name
 
         # 自动命名逻辑
@@ -55,9 +54,21 @@ class ProjectService:
             created_by=user_id,
         )
         db.add(project)
-        await db.flush()  # 先持久化项目，确保 project_id 已生成
+        await db.flush()
 
-        # 记录初始状态
+        # 自动生成项目编号
+        year = utc_now().year
+        seq_result = await db.execute(
+            select(func.count())
+            .select_from(ProjectInvestment)
+            .where(
+                ProjectInvestment.tenant_id == tenant_id,
+                func.extract("year", ProjectInvestment.created_at) == year,
+            )
+        )
+        seq = seq_result.scalar() + 1
+        project.project_code = f"ODI-{year}-{seq:06d}"
+
         log = ProjectStatusLog(
             project_id=project.project_id,
             from_status=None,
@@ -193,3 +204,21 @@ class ProjectService:
     async def delete_project(db: AsyncSession, project: ProjectInvestment):
         await db.delete(project)
         await db.flush()
+
+    @staticmethod
+    async def submit_project(
+        db: AsyncSession,
+        project: ProjectInvestment,
+        user_id: UUID,
+    ) -> ProjectInvestment:
+        if project.is_submitted:
+            raise ValueError("项目已提交，无法重复提交")
+        project.is_submitted = 1
+        project.submitted_at = utc_now()
+        project.submitted_by = user_id
+        await db.flush()
+        return project
+
+    @staticmethod
+    def can_edit_core_fields(project: ProjectInvestment) -> bool:
+        return not project.is_submitted

@@ -42,7 +42,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create refresh token with 7-day expiry."""
     to_encode = data.copy()
     expire = utc_now() + (expires_delta or timedelta(days=7))
     to_encode.update({"exp": expire, "type": "refresh"})
@@ -55,7 +54,6 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """从 JWT Token 解析当前用户"""
     token = credentials.credentials
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,7 +78,6 @@ async def get_current_user(
 
 
 def require_roles(allowed_roles: List[UserRole]):
-    """RBAC 角色权限装饰器"""
 
     async def role_checker(current_user: User = Depends(get_current_user)):
         if current_user.role not in [r.value for r in allowed_roles]:

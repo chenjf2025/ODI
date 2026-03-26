@@ -33,6 +33,13 @@ from app.api.admin import router as admin_router
 from app.api.admin_export import router as admin_export_router
 from app.api.export import router as export_router
 from app.api.upload import router as upload_router
+from app.api.departments import router as departments_router
+from app.api.dictionaries import router as dictionaries_router
+from app.api.approvals import router as approvals_router
+from app.api.remittances import router as remittances_router
+from app.api.declarations import router as declarations_router
+from app.api.logs import router as logs_router
+from app.api.sensitive_words import router as sensitive_words_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -418,6 +425,13 @@ app.include_router(admin_router)
 app.include_router(admin_export_router)
 app.include_router(export_router)
 app.include_router(upload_router)
+app.include_router(departments_router)
+app.include_router(dictionaries_router)
+app.include_router(approvals_router)
+app.include_router(remittances_router)
+app.include_router(declarations_router)
+app.include_router(logs_router)
+app.include_router(sensitive_words_router)
 
 
 @app.get("/", tags=["健康检查"])

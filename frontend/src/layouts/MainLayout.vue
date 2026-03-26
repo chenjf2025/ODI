@@ -36,6 +36,34 @@
           <template #icon><WalletOutlined /></template>
           <span>计费中心</span>
         </a-menu-item>
+        <a-menu-item key="Departments" @click="$router.push('/departments')">
+          <template #icon><TeamOutlined /></template>
+          <span>部门管理</span>
+        </a-menu-item>
+        <a-menu-item key="Approvals" @click="$router.push('/approvals')">
+          <template #icon><AuditOutlined /></template>
+          <span>审批流程</span>
+        </a-menu-item>
+        <a-menu-item key="Remittances" @click="$router.push('/remittances')">
+          <template #icon><BankOutlined /></template>
+          <span>付汇登记</span>
+        </a-menu-item>
+        <a-menu-item key="Declarations" @click="$router.push('/declarations')">
+          <template #icon><FileTextOutlined /></template>
+          <span>申报管理</span>
+        </a-menu-item>
+        <a-menu-item key="Logs" v-if="userStore.isAdmin" @click="$router.push('/logs')">
+          <template #icon><HistoryOutlined /></template>
+          <span>系统日志</span>
+        </a-menu-item>
+        <a-menu-item key="Dictionaries" v-if="userStore.isAdmin" @click="$router.push('/dictionaries')">
+          <template #icon><AppstoreOutlined /></template>
+          <span>数据字典</span>
+        </a-menu-item>
+        <a-menu-item key="SensitiveWords" v-if="userStore.isAdmin" @click="$router.push('/sensitive-words')">
+          <template #icon><SafetyOutlined /></template>
+          <span>敏感词</span>
+        </a-menu-item>
         <a-menu-item key="LLMConfig" v-if="userStore.isAdmin" @click="$router.push('/admin/llm')">
           <template #icon><SettingOutlined /></template>
           <span>系统配置</span>
@@ -88,7 +116,9 @@ import { useUserStore } from '../stores/user'
 import {
   DashboardOutlined, ProjectOutlined, BankOutlined, RobotOutlined,
   SafetyCertificateOutlined, WalletOutlined, SettingOutlined,
-  MenuFoldOutlined, MenuUnfoldOutlined, LogoutOutlined
+  MenuFoldOutlined, MenuUnfoldOutlined, LogoutOutlined,
+  TeamOutlined, AuditOutlined, FileTextOutlined, HistoryOutlined,
+  AppstoreOutlined, SafetyOutlined
 } from '@ant-design/icons-vue'
 
 const collapsed = ref(false)

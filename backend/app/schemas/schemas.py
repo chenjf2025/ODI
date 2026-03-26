@@ -40,9 +40,11 @@ class RegisterRequest(BaseModel):
 class UserOut(BaseModel):
     user_id: UUID
     tenant_id: UUID
+    department_id: Optional[UUID] = None
     username: str
     email: str
     full_name: Optional[str]
+    phone: Optional[str] = None
     role: str
     is_active: int
     created_at: datetime
@@ -57,9 +59,15 @@ class UserOut(BaseModel):
 class TenantOut(BaseModel):
     tenant_id: UUID
     agency_name: str
+    uscc: Optional[str] = None
+    legal_representative: Optional[str] = None
+    registered_address: Optional[str] = None
     subscription_plan: str
     subscription_expiry: Optional[datetime]
     balance_credits: int
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    is_active: int
     created_at: datetime
 
     class Config:
@@ -68,8 +76,13 @@ class TenantOut(BaseModel):
 
 class TenantUpdate(BaseModel):
     agency_name: Optional[str] = None
+    uscc: Optional[str] = None
+    legal_representative: Optional[str] = None
+    registered_address: Optional[str] = None
     subscription_plan: Optional[str] = None
     subscription_expiry: Optional[datetime] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
 
 
 class CreditTopup(BaseModel):
@@ -428,3 +441,269 @@ class StepDocumentsOut(BaseModel):
     step_name: str
     requirements: List[Dict]
     documents: List[DocumentOut]
+
+
+# ==================== 部门管理 ====================
+
+
+class DepartmentCreate(BaseModel):
+    parent_id: Optional[UUID] = None
+    department_name: str
+    leader_user_id: Optional[UUID] = None
+    sort_order: int = 0
+
+
+class DepartmentOut(BaseModel):
+    department_id: UUID
+    tenant_id: UUID
+    parent_id: Optional[UUID] = None
+    department_name: str
+    leader_user_id: Optional[UUID] = None
+    sort_order: int
+    is_active: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DepartmentUpdate(BaseModel):
+    parent_id: Optional[UUID] = None
+    department_name: Optional[str] = None
+    leader_user_id: Optional[UUID] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[int] = None
+
+
+# ==================== 数据字典 ====================
+
+
+class DataDictionaryCreate(BaseModel):
+    dict_type: str
+    dict_label: str
+    dict_value: str
+    sort_order: int = 0
+    remark: Optional[str] = None
+
+
+class DataDictionaryOut(BaseModel):
+    dict_id: UUID
+    tenant_id: UUID
+    dict_type: str
+    dict_label: str
+    dict_value: str
+    sort_order: int
+    is_active: int
+    remark: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DataDictionaryUpdate(BaseModel):
+    dict_label: Optional[str] = None
+    dict_value: Optional[str] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[int] = None
+    remark: Optional[str] = None
+
+
+class DataDictionaryTypeCreate(BaseModel):
+    dict_type: str
+
+
+class DataDictionaryTypeOut(BaseModel):
+    dict_type: str
+
+
+# ==================== 审批流程 ====================
+
+
+class ApprovalFlowCreate(BaseModel):
+    project_id: UUID
+
+
+class ApprovalFlowOut(BaseModel):
+    flow_id: UUID
+    project_id: UUID
+    tenant_id: UUID
+    current_level: str
+    status: str
+    created_by: UUID
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    completed_by: Optional[UUID] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ApprovalLogCreate(BaseModel):
+    approver_id: UUID
+    level: str
+    action: str
+    opinion: Optional[str] = None
+
+
+class ApprovalLogOut(BaseModel):
+    log_id: UUID
+    flow_id: UUID
+    approver_id: UUID
+    level: str
+    action: str
+    opinion: Optional[str] = None
+    operator_ip: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ApprovalDetailOut(BaseModel):
+    flow: ApprovalFlowOut
+    logs: List[ApprovalLogOut]
+
+
+# ==================== 付汇记录 ====================
+
+
+class RemittanceRecordCreate(BaseModel):
+    remittance_amount: float
+    currency: str = "USD"
+    receiver_account_name: str
+    receiver_bank_name: str
+    receiver_account_no: str
+    remittance_date: datetime
+    voucher_url: Optional[str] = None
+
+
+class RemittanceRecordOut(BaseModel):
+    record_id: UUID
+    project_id: UUID
+    tenant_id: UUID
+    remittance_amount: float
+    currency: str
+    receiver_account_name: str
+    receiver_bank_name: str
+    receiver_account_no: str
+    remittance_date: datetime
+    voucher_url: Optional[str] = None
+    status: str
+    registered_by: UUID
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RemittanceRecordUpdate(BaseModel):
+    remittance_amount: Optional[float] = None
+    currency: Optional[str] = None
+    receiver_account_name: Optional[str] = None
+    receiver_bank_name: Optional[str] = None
+    receiver_account_no: Optional[str] = None
+    remittance_date: Optional[datetime] = None
+    voucher_url: Optional[str] = None
+    status: Optional[str] = None
+
+
+# ==================== 申报记录 ====================
+
+
+class DeclarationRecordCreate(BaseModel):
+    target: str
+    remark: Optional[str] = None
+
+
+class DeclarationRecordOut(BaseModel):
+    record_id: UUID
+    project_id: UUID
+    tenant_id: UUID
+    target: str
+    status: str
+    receipt_no: Optional[str] = None
+    submitted_by: UUID
+    submitted_at: Optional[datetime] = None
+    remark: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DeclarationUpdate(BaseModel):
+    status: Optional[str] = None
+    receipt_no: Optional[str] = None
+    receipt_data: Optional[dict] = None
+    remark: Optional[str] = None
+
+
+# ==================== 系统日志 ====================
+
+
+class SystemLogOut(BaseModel):
+    log_id: UUID
+    tenant_id: UUID
+    user_id: Optional[UUID] = None
+    action: str
+    resource: Optional[str] = None
+    resource_id: Optional[str] = None
+    detail: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== 登录日志 ====================
+
+
+class LoginLogOut(BaseModel):
+    log_id: UUID
+    tenant_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    username: str
+    login_status: str
+    fail_reason: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    login_method: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== 敏感词 ====================
+
+
+class SensitiveWordCreate(BaseModel):
+    word_text: str
+    word_type: str
+    level: str = "MEDIUM"
+    description: Optional[str] = None
+
+
+class SensitiveWordOut(BaseModel):
+    word_id: UUID
+    tenant_id: UUID
+    word_text: str
+    word_type: str
+    level: str
+    description: Optional[str] = None
+    is_active: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SensitiveWordUpdate(BaseModel):
+    word_text: Optional[str] = None
+    word_type: Optional[str] = None
+    level: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[int] = None

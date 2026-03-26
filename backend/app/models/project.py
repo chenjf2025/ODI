@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Text,
+    Integer,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -112,6 +113,19 @@ class ProjectInvestment(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
+    # 项目编号和提交状态
+    project_code = Column(
+        String(50),
+        nullable=True,
+        unique=True,
+        comment="项目编号，格式: ODI-年份-6位流水号",
+    )
+    is_submitted = Column(
+        Integer, default=0, comment="是否已提交，提交后核心字段不可修改"
+    )
+    submitted_at = Column(DateTime, nullable=True, comment="提交时间")
+    submitted_by = Column(UUID(as_uuid=True), nullable=True, comment="提交人")
+
     # Relationships
     tenant = relationship("Tenant", back_populates="projects")
     domestic_entity = relationship("EntityDomestic", back_populates="projects")
@@ -125,6 +139,24 @@ class ProjectInvestment(Base):
     )
     documents = relationship(
         "ProjectDocument",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    approval_flows = relationship(
+        "ApprovalFlow",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    remittance_records = relationship(
+        "RemittanceRecord",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    declaration_records = relationship(
+        "DeclarationRecord",
         back_populates="project",
         lazy="selectin",
         cascade="all, delete-orphan",
