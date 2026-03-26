@@ -15,7 +15,7 @@
     <div class="page-card" style="margin-bottom: 16px">
       <a-space>
         <a-select v-model:value="statusFilter" placeholder="按状态筛选" style="width: 200px" allowClear @change="fetchProjects">
-          <a-select-option v-for="s in STATUS_LIST" :key="s" :value="s">{{ statusName(s) }}</a-select-option>
+          <a-select-option v-for="s in dicts.project_status" :key="s.dict_value" :value="s.dict_value">{{ s.dict_label }}</a-select-option>
         </a-select>
         <a-button @click="statusFilter = null; fetchProjects()">重置</a-button>
       </a-space>
@@ -82,20 +82,14 @@
           <a-col :span="6">
             <a-form-item label="币种">
               <a-select v-model:value="createForm.currency">
-                <a-select-option value="USD">USD</a-select-option>
-                <a-select-option value="CNY">CNY</a-select-option>
-                <a-select-option value="HKD">HKD</a-select-option>
-                <a-select-option value="EUR">EUR</a-select-option>
+                <a-select-option v-for="c in dicts.currency" :key="c.dict_value" :value="c.dict_value">{{ c.dict_label }} ({{ c.dict_value }})</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
           <a-col :span="6">
             <a-form-item label="投资架构">
               <a-select v-model:value="createForm.investment_path">
-                <a-select-option value="DIRECT">直接投资</a-select-option>
-                <a-select-option value="SPV_HK">香港 SPV</a-select-option>
-                <a-select-option value="SPV_SGP">新加坡 SPV</a-select-option>
-                <a-select-option value="MULTI_LAYER">多层架构</a-select-option>
+                <a-select-option v-for="p in dicts.investment_path" :key="p.dict_value" :value="p.dict_value">{{ p.dict_label }}</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -110,7 +104,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { projectsApi, entitiesApi } from '../api'
+import { projectsApi, entitiesApi, dictionariesApi } from '../api'
 import { useUserStore } from '../stores/user'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
@@ -125,6 +119,11 @@ const showCreate = ref(false)
 const creating = ref(false)
 const domesticEntities = ref([])
 const overseasEntities = ref([])
+const dicts = ref({
+  currency: [],
+  investment_path: [],
+  project_status: [],
+})
 
 const STATUS_LIST = [
   'PRE_REVIEW', 'DATA_COLLECTION', 'NDRC_FILING_PENDING', 'NDRC_APPROVED',
@@ -147,10 +146,21 @@ const columns = [
 onMounted(async () => {
   await fetchProjects()
   try {
-    const [d, o] = await Promise.all([entitiesApi.listDomestic(), entitiesApi.listOverseas()])
+    const [d, o, currencies, paths, statuses] = await Promise.all([
+      entitiesApi.listDomestic(),
+      entitiesApi.listOverseas(),
+      dictionariesApi.list({ dict_type: 'currency' }),
+      dictionariesApi.list({ dict_type: 'investment_path' }),
+      dictionariesApi.list({ dict_type: 'project_status' }),
+    ])
     domesticEntities.value = d.data
     overseasEntities.value = o.data
-  } catch {}
+    dicts.value.currency = currencies.data || []
+    dicts.value.investment_path = paths.data || []
+    dicts.value.project_status = statuses.data || []
+  } catch (e) {
+    console.error('获取初始化数据失败', e)
+  }
 })
 
 async function fetchProjects() {
